@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>HC Labs - AI Media Forge</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"></script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Space+Grotesk:wght@600;700&display=swap');
+body{font-family:'Inter',system-ui,sans-serif}
+.logo-font{font-family:'Space Grotesk',sans-serif}
+.glass{background:rgba(15,23,42,0.92);backdrop-filter:blur(20px);border:1px solid rgba(255,255,255,0.08)}
+.neon-text{text-shadow:0 0 20px #d4a94f,0 0 40px #d4a94f}
+.generate-btn{background:linear-gradient(90deg,#e8b84b,#c9974a);transition:all .4s cubic-bezier(.4,0,.2,1)}
+.generate-btn:hover{transform:scale(1.03) translateY(-2px);box-shadow:0 0 40px rgba(212,169,79,.5)}
+.generate-btn:disabled{opacity:.45;cursor:not-allowed;transform:none;box-shadow:none}
+.tab{border:1px solid transparent;transition:all .2s ease}
+.tab:hover{background:rgba(255,255,255,0.04)}
+.tab-active{background:rgba(212,169,79,0.15);color:#e0b25a;border:1px solid rgba(212,169,79,0.35)}
+.ratio-btn{transition:all .2s ease;border:1px solid rgba(255,255,255,0.12)}
+.ratio-btn.active{background:#c9974a;border-color:#c9974a;color:#14100a}
+.ref-box{transition:all .3s ease;cursor:pointer}
+.ref-box:hover{border-color:#c9974a;transform:scale(1.03)}
+.progress-shimmer{background:linear-gradient(90deg,#c9974a,#f3d27a,#c9974a);background-size:200% 100%;animation:shimmer 1.5s infinite linear}
+@keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+.dot-pulse{animation:dotpulse 1.4s infinite}
+@keyframes dotpulse{0%,100%{opacity:1}50%{opacity:.3}}
+.badge-pending{background:rgba(60,60,80,.8);color:#666}
+.badge-run{background:rgba(234,179,8,.15);color:#eab308;border:1px solid rgba(234,179,8,.3)}
+.badge-pass{background:rgba(34,197,94,.12);color:#22c55e;border:1px solid rgba(34,197,94,.25)}
+.badge-fail{background:rgba(239,68,68,.12);color:#ef4444;border:1px solid rgba(239,68,68,.25)}
+::-webkit-scrollbar{width:4px}
+::-webkit-scrollbar-thumb{background:rgba(212,169,79,.3);border-radius:8px}
+.model-row{background:rgba(20,22,36,.8);border:1px solid rgba(255,255,255,.06);transition:background .15s}
+.model-row:hover{background:rgba(212,169,79,.07)}
+#toast{transition:all .3s cubic-bezier(.34,1.56,.64,1)}
+.status-dot-green{background:#22c55e;box-shadow:0 0 6px #22c55e}
+.status-dot-red{background:#ef4444}
+.status-dot-yellow{background:#eab308;animation:dotpulse 1.4s infinite}
+</style>
+</head>
+<body class="bg-zinc-950 text-zinc-200 min-h-screen">
+<div class="flex h-screen overflow-hidden">
+
+<!-- ═══════ SIDEBAR ═══════ -->
+<div class="w-64 bg-black border-r border-zinc-900 flex flex-col flex-shrink-0">
+
+  <!-- Logo -->
+  <div class="p-6 border-b border-zinc-900 flex items-center gap-3">
+    <div class="w-11 h-11 flex items-center justify-center flex-shrink-0">
+      <img src="data:image/webp;base64,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" alt="HC Labs" class="w-full h-full object-contain">
+    </div>
+    <div class="logo-font text-4xl font-bold tracking-tighter neon-text">HC LABS</div>
+  </div>
+
+  <!-- Nav -->
+  <nav class="flex-1 p-4 space-y-1.5 overflow-y-auto">
+    <button onclick="switchTab(0)" id="tab-0" class="tab w-full text-left px-5 py-4 rounded-3xl flex items-center gap-3 text-zinc-400">
+      <i class="fa-solid fa-image w-4 text-center"></i> Image Generator
+    </button>
+    <button onclick="switchTab(1)" id="tab-1" class="tab w-full text-left px-5 py-4 rounded-3xl flex items-center gap-3 text-zinc-400">
+      <i class="fa-solid fa-film w-4 text-center"></i> Video Generator
+    </button>
+    <button onclick="switchTab(2)" id="tab-2" class="tab w-full text-left px-5 py-4 rounded-3xl flex items-center gap-3 text-zinc-400">
+      <i class="fa-solid fa-clone w-4 text-center"></i> Multi-Ref Video
+    </button>
+    <button onclick="switchTab(3)" id="tab-3" class="tab w-full text-left px-5 py-4 rounded-3xl flex items-center gap-3 text-zinc-400">
+      <i class="fa-solid fa-history w-4 text-center"></i> History
+      <span id="hist-badge" class="ml-auto text-xs bg-zinc-800 text-zinc-500 px-2 py-0.5 rounded-full hidden">0</span>
+    </button>
+    <button onclick="switchTab(4)" id="tab-4" class="tab w-full text-left px-5 py-4 rounded-3xl flex items-center gap-3 text-zinc-400">
+      <i class="fa-solid fa-stethoscope w-4 text-center"></i> Diagnostics
+    </button>
+    <button onclick="switchTab(5)" id="tab-5" class="tab w-full text-left px-5 py-4 rounded-3xl flex items-center gap-3 text-zinc-400">
+      <i class="fa-solid fa-wand-magic-sparkles w-4 text-center"></i> Image Editor
+    </button>
+  </nav>
+
+  <!-- Worker Status (bottom of sidebar — no keys, just connectivity) -->
+  <div class="p-4 border-t border-zinc-900 space-y-2">
+    <div class="glass rounded-2xl px-4 py-3 flex items-center justify-between">
+      <div>
+        <p class="text-xs text-zinc-500 font-medium">HC Labs API</p>
+        <p id="status-text" class="text-xs text-zinc-600 mt-0.5">Menghubungkan...</p>
+      </div>
+      <div id="status-dot" class="w-2.5 h-2.5 rounded-full status-dot-yellow flex-shrink-0"></div>
+    </div>
+    <button onclick="logout()" class="w-full text-xs text-zinc-600 hover:text-red-400 transition-colors py-1.5 flex items-center justify-center gap-1.5">
+      <i class="fa-solid fa-arrow-right-from-bracket"></i> Keluar / Ganti Akun
+    </button>
+  </div>
+</div>
+
+<!-- ═══════ MAIN ═══════ -->
+<div class="flex-1 flex flex-col overflow-hidden">
+
+  <!-- Header -->
+  <div class="h-16 bg-black/90 backdrop-blur border-b border-zinc-900 px-8 flex items-center justify-between flex-shrink-0">
+    <div class="flex items-center gap-4">
+      <div id="current-title" class="text-xl font-bold logo-font">Image Generator</div>
+      <div id="active-model-badge" class="hidden text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 px-3 py-1 rounded-full"></div>
+    </div>
+    <div id="session-counter" class="text-xs text-zinc-600 hidden">Sesi: <span id="gen-count" class="text-zinc-400 font-semibold">0</span></div>
+  </div>
+
+  <!-- Content -->
+  <div class="flex-1 overflow-auto p-8" id="main-content">
+
+    <!-- ── PANEL 0: IMAGE ── -->
+    <div id="panel-0" class="hidden">
+      <div class="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-5 gap-8">
+        <div class="lg:col-span-3">
+          <div class="glass rounded-3xl p-8 flex flex-col gap-6">
+            <div>
+              <label class="text-xs text-zinc-500 uppercase tracking-wider block mb-2">Model Image</label>
+              <select id="img-model" class="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3 text-sm text-zinc-300">
+                <option value="default">— Memuat model... —</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-zinc-500 uppercase tracking-wider block mb-2">Deskripsi Gambar</label>
+              <textarea id="image-prompt" rows="5" class="w-full bg-transparent text-base focus:outline-none resize-none placeholder-zinc-700"
+                placeholder="Deskripsikan gambar yang diinginkan..."></textarea>
+            </div>
+            <div class="grid grid-cols-2 gap-4">
+              <div>
+                <label class="text-xs text-zinc-500 uppercase tracking-wider block mb-2">Aspect Ratio</label>
+                <div id="image-ratios" class="flex gap-2 flex-wrap"></div>
+              </div>
+              <div>
+                <label class="text-xs text-zinc-500 uppercase tracking-wider block mb-2">Style</label>
+                <select id="image-style" class="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-3 py-2.5 text-sm text-zinc-300">
+                  <option value="">Default</option>
+                  <option value=", photorealistic, ultra detailed, 8K, sharp focus">Photorealistic</option>
+                  <option value=", cinematic film still, dramatic lighting, anamorphic">Cinematic</option>
+                  <option value=", cyberpunk, neon lights, futuristic, rain reflections">Cyberpunk</option>
+                  <option value=", product photography, studio lighting, clean background">Product Shot</option>
+                  <option value=", anime illustration, Studio Ghibli, soft colors">Anime</option>
+                  <option value=", dark fantasy, oil painting, epic, dramatic shadows">Dark Fantasy</option>
+                  <option value=", analog film, Kodak grain, vintage, warm tones">Analog Film</option>
+                </select>
+              </div>
+            </div>
+            <div>
+              <label class="text-xs text-zinc-500 uppercase tracking-wider block mb-2">Negative Prompt</label>
+              <input id="image-negative" type="text" placeholder="blur, watermark, ugly, deformed..."
+                class="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3 text-sm text-zinc-300 placeholder-zinc-700">
+            </div>
+            <div id="img-loading" class="hidden rounded-2xl px-5 py-4 flex items-center gap-3 bg-zinc-900/60 border border-zinc-800">
+              <div class="dot-pulse w-2 h-2 rounded-full bg-amber-500 flex-shrink-0"></div>
+              <span id="img-loading-text" class="text-sm text-zinc-400">Generating...</span>
+            </div>
+            <button onclick="generateImage()" id="img-btn" class="generate-btn w-full py-6 rounded-3xl text-xl font-semibold text-zinc-950">
+              ⚡ GENERATE IMAGE
+            </button>
+          </div>
+        </div>
+        <div class="lg:col-span-2 flex flex-col gap-4">
+          <div id="image-preview" class="glass rounded-3xl aspect-square flex items-center justify-center text-zinc-700 flex-col gap-3">
+            <i class="fa-regular fa-image text-5xl"></i>
+            <p class="text-sm">Preview area</p>
+          </div>
+          <div id="image-result" class="hidden flex flex-col gap-3">
+            <img id="generated-image" class="w-full rounded-3xl shadow-2xl">
+            <button onclick="downloadImage()" class="w-full py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl flex items-center justify-center gap-2 text-sm transition-colors">
+              <i class="fa-solid fa-download"></i> Download PNG
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PANEL 1: VIDEO ── -->
+    <div id="panel-1" class="hidden">
+      <div class="max-w-2xl mx-auto">
+        <div class="glass rounded-3xl p-8 flex flex-col gap-6">
+          <div>
+            <label class="text-xs text-zinc-500 uppercase tracking-wider block mb-2">Model Video</label>
+            <select id="vid-model" class="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3 text-sm text-zinc-300">
+              <option value="default">— Memuat model... —</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-zinc-500 uppercase tracking-wider block mb-2">Deskripsi Video</label>
+            <textarea id="video-prompt" rows="5" class="w-full bg-transparent text-base resize-none focus:outline-none placeholder-zinc-700"
+              placeholder="Deskripsikan video yang diinginkan..."></textarea>
+          </div>
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="text-xs text-zinc-500 uppercase tracking-wider block mb-2">Aspect Ratio</label>
+              <div id="video-ratios" class="flex gap-2 flex-wrap"></div>
+            </div>
+            <div>
+              <label class="text-xs text-zinc-500 uppercase tracking-wider block mb-2">Durasi</label>
+              <div class="flex gap-2">
+                <button onclick="setDuration(5)" id="dur-5" class="ratio-btn active px-4 py-2.5 text-sm rounded-2xl">5s</button>
+                <button onclick="setDuration(8)" id="dur-8" class="ratio-btn px-4 py-2.5 text-sm rounded-2xl">8s</button>
+                <button onclick="setDuration(10)" id="dur-10" class="ratio-btn px-4 py-2.5 text-sm rounded-2xl">10s</button>
+              </div>
+            </div>
+          </div>
+          <div id="vid-status-bar" class="hidden rounded-2xl px-5 py-4 bg-red-950/20 border border-red-900/30">
+            <div class="flex items-center justify-between mb-2">
+              <span id="vid-status-text" class="text-sm text-zinc-300">Mengirim request...</span>
+              <span id="vid-timer" class="text-sm font-mono text-red-400">0s</span>
+            </div>
+            <div class="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+              <div id="vid-bar" class="progress-shimmer h-full rounded-full transition-all duration-1000" style="width:5%"></div>
+            </div>
+            <p class="text-xs text-zinc-600 mt-2">Video AI memerlukan 1–5 menit. Jangan tutup halaman.</p>
+          </div>
+          <button onclick="generateVideo()" id="vid-btn" class="generate-btn w-full py-7 rounded-3xl text-xl font-semibold text-zinc-950">
+            🎬 GENERATE VIDEO
+          </button>
+        </div>
+        <div id="video-result" class="hidden mt-8 glass rounded-3xl p-6 flex flex-col gap-4">
+          <div class="flex items-center justify-between">
+            <h3 class="font-semibold text-zinc-200">Hasil Video</h3>
+            <span class="text-xs text-green-500 flex items-center gap-1.5"><i class="fa-solid fa-circle-check"></i> Selesai</span>
+          </div>
+          <video id="generated-video" controls class="w-full rounded-2xl bg-black"></video>
+          <button onclick="dlVideo('generated-video')" class="w-full py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl flex items-center justify-center gap-2 text-sm transition-colors">
+            <i class="fa-solid fa-download"></i> Download MP4
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PANEL 2: MULTI-REF ── -->
+    <div id="panel-2" class="hidden">
+      <div class="max-w-5xl mx-auto">
+        <h1 class="text-3xl font-bold mb-2 logo-font">Multi-Reference Video</h1>
+        <p class="text-zinc-500 mb-8 text-sm">Upload gambar referensi untuk video yang konsisten secara visual.</p>
+        <div class="glass rounded-3xl p-8 flex flex-col gap-6">
+          <div>
+            <label class="text-xs text-zinc-500 uppercase tracking-wider block mb-2">Model Video</label>
+            <select id="multi-model" class="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3 text-sm text-zinc-300">
+              <option value="default">— Memuat model... —</option>
+            </select>
+          </div>
+          <div>
+            <label class="text-xs text-zinc-500 uppercase tracking-wider block mb-3">Referensi Gambar (klik untuk upload)</label>
+            <div id="ref-container" class="grid grid-cols-4 gap-4"></div>
+          </div>
+          <div>
+            <label class="text-xs text-zinc-500 uppercase tracking-wider block mb-2">Deskripsi Gerakan</label>
+            <textarea id="multi-prompt" rows="4" class="w-full bg-zinc-900 border border-zinc-800 rounded-2xl p-5 text-base resize-none focus:outline-none placeholder-zinc-700"
+              placeholder="Karakter berjalan ke kanan, kamera pan lambat, ekspresi tenang..."></textarea>
+          </div>
+          <div>
+            <label class="text-xs text-zinc-500 uppercase tracking-wider block mb-2">Aspect Ratio</label>
+            <div id="multi-ratios" class="flex gap-2 flex-wrap"></div>
+          </div>
+          <div id="multi-status-bar" class="hidden rounded-2xl px-5 py-4 bg-red-950/20 border border-red-900/30">
+            <div class="flex items-center justify-between mb-2">
+              <span id="multi-status-text" class="text-sm text-zinc-300">Mengirim referensi...</span>
+              <span id="multi-timer" class="text-sm font-mono text-red-400">0s</span>
+            </div>
+            <div class="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+              <div id="multi-bar" class="progress-shimmer h-full rounded-full transition-all duration-1000" style="width:5%"></div>
+            </div>
+          </div>
+          <button onclick="generateMultiRefVideo()" id="multi-btn" class="generate-btn w-full py-7 rounded-3xl text-xl font-semibold text-zinc-950">
+            🎞️ GENERATE VIDEO DARI REFERENSI
+          </button>
+        </div>
+        <div id="multi-result" class="hidden mt-8 glass rounded-3xl p-6 flex flex-col gap-4">
+          <div class="flex items-center justify-between">
+            <h3 class="font-semibold">Hasil Video</h3>
+            <span class="text-xs text-green-500"><i class="fa-solid fa-circle-check mr-1"></i>Selesai</span>
+          </div>
+          <video id="multi-generated-video" controls class="w-full rounded-2xl bg-black"></video>
+          <button onclick="dlVideo('multi-generated-video')" class="w-full py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl flex items-center justify-center gap-2 text-sm transition-colors">
+            <i class="fa-solid fa-download"></i> Download MP4
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PANEL 3: HISTORY ── -->
+    <div id="panel-3" class="hidden">
+      <div class="max-w-5xl mx-auto">
+        <div class="flex items-center justify-between mb-8">
+          <h1 class="text-3xl font-bold logo-font">Generation History</h1>
+          <button onclick="clearHistory()" class="text-xs text-zinc-600 hover:text-red-500 transition-colors">
+            <i class="fa-solid fa-trash mr-1"></i> Hapus Semua
+          </button>
+        </div>
+        <div id="history-list" class="grid grid-cols-1 md:grid-cols-3 gap-6"></div>
+        <div id="history-empty" class="hidden text-center py-20 text-zinc-700">
+          <i class="fa-regular fa-clock text-5xl mb-4 block"></i>
+          <p>Belum ada history.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PANEL 4: DIAGNOSTICS ── -->
+    <div id="panel-4" class="hidden">
+      <div class="max-w-3xl mx-auto">
+        <h1 class="text-3xl font-bold mb-2 logo-font">API Diagnostics</h1>
+        <p class="text-zinc-500 mb-8 text-sm">Test koneksi Worker ke semua provider backend.</p>
+
+        <div class="glass rounded-3xl p-8 mb-6">
+          <div class="flex items-center justify-between mb-6">
+            <h3 class="font-semibold text-zinc-300">Test Suite</h3>
+            <span class="text-xs text-zinc-600 font-mono" id="diag-worker-url"></span>
+          </div>
+          <div class="space-y-3">
+            <div class="flex items-center justify-between bg-zinc-900/60 border border-zinc-800 rounded-2xl px-5 py-4">
+              <div><p class="text-sm font-medium">1. Worker Health</p><p class="text-xs text-zinc-600 mt-0.5">GET /api/health</p></div>
+              <span id="diag-badge-1" class="text-xs px-3 py-1 rounded-full badge-pending">Pending</span>
+            </div>
+            <div class="flex items-center justify-between bg-zinc-900/60 border border-zinc-800 rounded-2xl px-5 py-4">
+              <div><p class="text-sm font-medium">2. Model List</p><p class="text-xs text-zinc-600 mt-0.5">GET /api/models</p></div>
+              <span id="diag-badge-2" class="text-xs px-3 py-1 rounded-full badge-pending">Pending</span>
+            </div>
+            <div class="flex items-center justify-between bg-zinc-900/60 border border-zinc-800 rounded-2xl px-5 py-4">
+              <div><p class="text-sm font-medium">3. Provider Connectivity</p><p class="text-xs text-zinc-600 mt-0.5">POST /api/diagnostics</p></div>
+              <span id="diag-badge-3" class="text-xs px-3 py-1 rounded-full badge-pending">Pending</span>
+            </div>
+            <div class="flex items-center justify-between bg-zinc-900/60 border border-zinc-800 rounded-2xl px-5 py-4">
+              <div><p class="text-sm font-medium">4. Image Generation</p><p class="text-xs text-zinc-600 mt-0.5">POST /api/images/generate</p></div>
+              <span id="diag-badge-4" class="text-xs px-3 py-1 rounded-full badge-pending">Pending</span>
+            </div>
+            <div class="flex items-center justify-between bg-zinc-900/60 border border-zinc-800 rounded-2xl px-5 py-4">
+              <div><p class="text-sm font-medium">5. Image Editor (Img2Img)</p><p class="text-xs text-zinc-600 mt-0.5">POST /api/images/edit</p></div>
+              <span id="diag-badge-5" class="text-xs px-3 py-1 rounded-full badge-pending">Pending</span>
+            </div>
+          </div>
+          <button onclick="runDiagnostics()" id="diag-btn" class="generate-btn w-full mt-8 py-5 rounded-3xl text-lg font-semibold text-zinc-950">
+            🔬 Jalankan Semua Test
+          </button>
+        </div>
+
+        <div class="glass rounded-3xl p-6 mb-6">
+          <div class="flex items-center justify-between mb-4">
+            <h3 class="font-semibold text-zinc-300 text-sm">Log Output</h3>
+            <button onclick="document.getElementById('diag-log').innerHTML=''" class="text-xs text-zinc-700 hover:text-zinc-400">Clear</button>
+          </div>
+          <div id="diag-log" class="font-mono text-xs space-y-1 max-h-64 overflow-y-auto bg-zinc-950 rounded-2xl p-4 min-h-20">
+            <p class="text-zinc-700">// Log output akan muncul di sini...</p>
+          </div>
+        </div>
+
+        <div id="diag-summary" class="hidden glass rounded-3xl p-6">
+          <h3 id="diag-summary-title" class="font-semibold mb-4"></h3>
+          <div id="diag-summary-body" class="text-sm space-y-2"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ── PANEL 5: IMAGE EDITOR (IMG2IMG) ── -->
+    <div id="panel-5" class="hidden">
+      <div class="max-w-5xl mx-auto grid grid-cols-1 lg:grid-cols-5 gap-8">
+        <div class="lg:col-span-3">
+          <div class="glass rounded-3xl p-8 flex flex-col gap-6">
+            <div>
+              <label class="text-xs text-zinc-500 uppercase tracking-wider block mb-2">Engine Edit</label>
+              <select id="edit-model" class="w-full bg-zinc-900 border border-zinc-800 rounded-2xl px-4 py-3 text-sm text-zinc-300">
+                <option value="default">— Memuat engine... —</option>
+              </select>
+            </div>
+            <div>
+              <label class="text-xs text-zinc-500 uppercase tracking-wider block mb-3">Gambar Sumber (klik untuk upload)</label>
+              <div id="edit-source-box" class="ref-box aspect-video border-2 border-dashed border-zinc-700 rounded-3xl flex flex-col items-center justify-center bg-zinc-900/60">
+                <i class="fa-solid fa-plus text-3xl text-zinc-600"></i>
+                <p class="text-xs mt-2 text-zinc-600">Klik untuk upload gambar</p>
+              </div>
+            </div>
+            <div>
+              <label class="text-xs text-zinc-500 uppercase tracking-wider block mb-2">Instruksi Edit</label>
+              <textarea id="edit-prompt" rows="4" class="w-full bg-transparent text-base focus:outline-none resize-none placeholder-zinc-700"
+                placeholder="Contoh: ganti background jadi pantai saat sunset, ubah warna baju jadi merah..."></textarea>
+            </div>
+            <div id="edit-loading" class="hidden rounded-2xl px-5 py-4 flex items-center gap-3 bg-zinc-900/60 border border-zinc-800">
+              <div class="dot-pulse w-2 h-2 rounded-full bg-amber-500 flex-shrink-0"></div>
+              <span id="edit-loading-text" class="text-sm text-zinc-400">Editing...</span>
+            </div>
+            <button onclick="generateImageEdit()" id="edit-btn" class="generate-btn w-full py-6 rounded-3xl text-xl font-semibold text-zinc-950">
+              ✨ EDIT GAMBAR
+            </button>
+          </div>
+        </div>
+        <div class="lg:col-span-2 flex flex-col gap-4">
+          <div id="edit-preview" class="glass rounded-3xl aspect-square flex items-center justify-center text-zinc-700 flex-col gap-3">
+            <i class="fa-regular fa-image text-5xl"></i>
+            <p class="text-sm">Preview area</p>
+          </div>
+          <div id="edit-result" class="hidden flex flex-col gap-3">
+            <img id="edited-image" class="w-full rounded-3xl shadow-2xl">
+            <button onclick="downloadEditedImage()" class="w-full py-4 bg-zinc-800 hover:bg-zinc-700 rounded-2xl flex items-center justify-center gap-2 text-sm transition-colors">
+              <i class="fa-solid fa-download"></i> Download PNG
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+</div>
+
+<!-- ═══════ TOAST ═══════ -->
+<div id="toast" class="hidden fixed bottom-8 right-8 glass px-6 py-4 rounded-3xl shadow-2xl z-50 flex items-center gap-3" style="max-width:360px">
+  <i id="toast-icon" class="fa-solid fa-circle-check text-green-400 flex-shrink-0"></i>
+  <span id="toast-text" class="text-sm text-zinc-200"></span>
+</div>
+
+<style>
+@keyframes fadeUp{from{opacity:0;transform:translateY(20px)}to{opacity:1;transform:translateY(0)}}
+</style>
+
+<script>
+// ════════════════════════════════════════════
+//  CONFIG — ganti URL setelah deploy Worker
+// ════════════════════════════════════════════
+const WORKER_URL = 'https://hclabs-api.hancover8888.workers.dev';
+// Contoh setelah deploy: 'https://hclabs-api.cuanly.workers.dev'
+// Atau custom domain: 'https://api.hclabs.cuanly.id'
+
+// ════════════════════════════════════════════
+//  LICENSE — key + email binding (Opsi 1.5)
+// ════════════════════════════════════════════
+const LS_KEY   = 'hclabs_license_key';
+const LS_EMAIL = 'hclabs_license_email';
+const LS_TIER  = 'hclabs_license_tier';
+
+function getLicenseHeaders() {
+  return {
+    'X-License-Key':   localStorage.getItem(LS_KEY)   || '',
+    'X-License-Email': localStorage.getItem(LS_EMAIL) || '',
+  };
+}
+
+function isLicenseStored() {
+  return !!(localStorage.getItem(LS_KEY) && localStorage.getItem(LS_EMAIL));
+}
+
+function clearLicense() {
+  [LS_KEY, LS_EMAIL, LS_TIER].forEach(k => localStorage.removeItem(k));
+}
+
+function logout() {
+  clearLicense();
+  location.reload();
+}
+
+// ════════════════════════════════════════════
+//  STATE
+// ════════════════════════════════════════════
+let selectedRatio    = '1024x1024';
+let selectedVidRatio = '16:9';
+let selectedDuration = 5;
+let references       = [];
+let editSourceImage  = null;
+let history          = JSON.parse(localStorage.getItem('hclabs_history') || '[]');
+let genCount         = 0;
+let timerIv          = null;
+
+const RATIOS     = [{l:'1:1',v:'1024x1024'},{l:'16:9',v:'1792x1024'},{l:'9:16',v:'1024x1792'},{l:'4:5',v:'896x1120'}];
+const VID_RATIOS = [{l:'16:9',v:'16:9'},{l:'9:16',v:'9:16'},{l:'1:1',v:'1:1'}];
+const delay      = ms => new Promise(r => setTimeout(r, ms));
+
+// ════════════════════════════════════════════
+//  WORKER API CALLS (dengan license headers)
+// ════════════════════════════════════════════
+async function workerFetch(path, options = {}) {
+  const res  = await fetch(`${WORKER_URL}${path}`, {
+    ...options,
+    headers: {
+      'Content-Type': 'application/json',
+      ...getLicenseHeaders(),
+      ...(options.headers || {}),
+    },
+  });
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+  return data;
+}
+
+// ════════════════════════════════════════════
+//  WORKER STATUS CHECK + MODEL LOAD
+// ════════════════════════════════════════════
+function setStatus(state, text) {
+  const dot  = document.getElementById('status-dot');
+  const txt  = document.getElementById('status-text');
+  dot.className = `w-2.5 h-2.5 rounded-full flex-shrink-0 status-dot-${state}`;
+  txt.textContent = text;
+}
+
+async function initWorker() {
+  setStatus('yellow', 'Menghubungkan...');
+  document.getElementById('diag-worker-url').textContent = WORKER_URL;
+  try {
+    const health = await workerFetch('/api/health');
+    setStatus('green', `Online · img:${health.imageProvider} vid:${health.videoProvider}`);
+    await loadModels();
+  } catch (e) {
+    setStatus('red', 'Worker tidak terhubung');
+    showToast('Worker offline — periksa WORKER_URL di kode', true);
+  }
+}
+
+async function loadModels() {
+  try {
+    const data = await workerFetch('/api/models');
+    fillSelect('img-model',   data.image || []);
+    fillSelect('edit-model',  data.imageEdit || []);
+    fillSelect('vid-model',   data.video || []);
+    fillSelect('multi-model', data.video || []);
+  } catch (e) {
+    showToast('Gagal memuat model list', true);
+  }
+}
+
+// Ambil teks label yang sedang terpilih di sebuah <select> (mis. "Aurum
+// Vision"), dipakai untuk badge & history supaya yang tampil ke user selalu
+// nama brand, bukan id model mentah dari fal.ai.
+function selectedLabel(id) {
+  const s = document.getElementById(id);
+  return s?.selectedOptions?.[0]?.textContent || s?.value || '';
+}
+
+// arr sekarang berisi [{value, label}] — label adalah nama brand (mis. "Aurum
+// Vision") yang dilihat user, value adalah id model internal di fal.ai.
+function fillSelect(id, arr) {
+  const s = document.getElementById(id);
+  if (!s || !arr.length) return;
+  s.innerHTML = '';
+  arr.slice(0, 20).forEach(m => {
+    const o = document.createElement('option');
+    o.value = m.value ?? m; o.textContent = m.label ?? m; s.appendChild(o);
+  });
+}
+
+// ════════════════════════════════════════════
+//  GENERATE IMAGE
+// ════════════════════════════════════════════
+async function generateImage() {
+  const prompt = document.getElementById('image-prompt').value.trim();
+  if (!prompt) return showToast('Isi deskripsi gambar!', true);
+
+  const model    = document.getElementById('img-model').value;
+  const style    = document.getElementById('image-style').value;
+  const negative = document.getElementById('image-negative').value.trim();
+
+  const btn = document.getElementById('img-btn'); btn.disabled = true;
+  document.getElementById('image-result').classList.add('hidden');
+  document.getElementById('image-preview').classList.remove('hidden');
+  document.getElementById('img-loading').classList.remove('hidden');
+  document.getElementById('img-loading-text').textContent = 'Generating via HC Labs...';
+  document.getElementById('active-model-badge').textContent = selectedLabel('img-model');
+  document.getElementById('active-model-badge').classList.remove('hidden');
+
+  try {
+    let result = await workerFetch('/api/images/generate', {
+      method: 'POST',
+      body: JSON.stringify({ prompt: prompt + style, model, size: selectedRatio, negative }),
+    });
+
+    // Kalau worker belum selesai polling (>24 detik), frontend lanjut polling
+    if (result.pending && result.taskId) {
+      document.getElementById('img-loading-text').textContent = 'Menunggu hasil generate...';
+      const url = await pollVideo(result.provider, result.taskId, txt => {
+        document.getElementById('img-loading-text').textContent = txt;
+      });
+      result = { type: 'url', url };
+    }
+
+    const img = document.getElementById('generated-image');
+    img.src = result.type === 'base64' ? `data:${result.mime};base64,${result.data}` : result.url;
+
+    document.getElementById('image-preview').classList.add('hidden');
+    document.getElementById('image-result').classList.remove('hidden');
+    addHistory({ type: 'image', prompt: prompt.slice(0, 60), src: img.src, model: selectedLabel('img-model') });
+    genCount++; updateCounter();
+    showToast('Gambar berhasil di-generate! ✅');
+  } catch (e) {
+    showToast(parseErr(e), true);
+  } finally {
+    btn.disabled = false;
+    document.getElementById('img-loading').classList.add('hidden');
+  }
+}
+
+// ════════════════════════════════════════════
+//  IMAGE EDITOR (IMG2IMG)
+// ════════════════════════════════════════════
+function initEditRef() {
+  const box = document.getElementById('edit-source-box');
+  if (!box) return;
+  editSourceImage = null;
+  box.innerHTML = '<i class="fa-solid fa-plus text-3xl text-zinc-600"></i><p class="text-xs mt-2 text-zinc-600">Klik untuk upload gambar</p>';
+  box.onclick = () => uploadEditSource(box);
+}
+function uploadEditSource(box) {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = ev => { box.innerHTML = `<img src="${ev.target.result}" class="w-full h-full object-cover rounded-3xl">`; editSourceImage = ev.target.result; };
+    r.readAsDataURL(f);
+  };
+  inp.click();
+}
+async function generateImageEdit() {
+  if (!editSourceImage) return showToast('Upload gambar sumber dulu!', true);
+  const prompt = document.getElementById('edit-prompt').value.trim();
+  if (!prompt) return showToast('Isi instruksi edit!', true);
+
+  const model = document.getElementById('edit-model').value;
+  const btn = document.getElementById('edit-btn'); btn.disabled = true;
+  document.getElementById('edit-result').classList.add('hidden');
+  document.getElementById('edit-preview').classList.remove('hidden');
+  document.getElementById('edit-loading').classList.remove('hidden');
+  document.getElementById('edit-loading-text').textContent = 'Mengedit via HC Labs...';
+  document.getElementById('active-model-badge').textContent = selectedLabel('edit-model');
+  document.getElementById('active-model-badge').classList.remove('hidden');
+
+  try {
+    // Catatan: parameter "strength" sengaja tidak dikirim — Aurum Retouch
+    // (nano-banana/edit) adalah model instruksi-bahasa, bukan diffusion
+    // img2img konvensional, jadi tidak punya parameter strength.
+    let result = await workerFetch('/api/images/edit', {
+      method: 'POST',
+      body: JSON.stringify({ prompt, model, image: editSourceImage }),
+    });
+
+    if (result.pending && result.taskId) {
+      document.getElementById('edit-loading-text').textContent = 'Menunggu hasil edit...';
+      const url = await pollImageEdit(result.taskId, txt => {
+        document.getElementById('edit-loading-text').textContent = txt;
+      });
+      result = { type: 'url', url };
+    }
+
+    const img = document.getElementById('edited-image');
+    img.src = result.type === 'base64' ? `data:${result.mime};base64,${result.data}` : result.url;
+
+    document.getElementById('edit-preview').classList.add('hidden');
+    document.getElementById('edit-result').classList.remove('hidden');
+    addHistory({ type: 'image', prompt: `[Edit] ${prompt.slice(0, 55)}`, src: img.src, model: selectedLabel('edit-model') });
+    genCount++; updateCounter();
+    showToast('Gambar berhasil diedit! ✨');
+  } catch (e) {
+    showToast(parseErr(e), true);
+  } finally {
+    btn.disabled = false;
+    document.getElementById('edit-loading').classList.add('hidden');
+  }
+}
+async function pollImageEdit(taskId, onStatus) {
+  for (let i = 0; i < 24; i++) {
+    await delay(5000);
+    const data = await workerFetch(`/api/images/status/${taskId}`);
+    onStatus(`Status: ${data.status} (${(i + 1) * 5}s)`);
+    if (data.done) {
+      if (data.url) return data.url;
+      throw new Error('Edit selesai tapi URL tidak ditemukan');
+    }
+    if (data.failed) throw new Error(`Edit gagal (${data.status})`);
+  }
+  throw new Error('Timeout setelah 2 menit');
+}
+function downloadEditedImage() {
+  const s = document.getElementById('edited-image').src; if (!s) return;
+  if (s.startsWith('data:')) { const a = document.createElement('a'); a.href = s; a.download = `hclabs-edit-${Date.now()}.png`; a.click(); }
+  else window.open(s, '_blank');
+}
+
+// ════════════════════════════════════════════
+//  GENERATE VIDEO
+// ════════════════════════════════════════════
+async function generateVideo() {
+  const prompt = document.getElementById('video-prompt').value.trim();
+  if (!prompt) return showToast('Isi deskripsi video!', true);
+
+  const model = document.getElementById('vid-model').value;
+  const btn   = document.getElementById('vid-btn'); btn.disabled = true;
+  document.getElementById('video-result').classList.add('hidden');
+  document.getElementById('vid-status-bar').classList.remove('hidden');
+  document.getElementById('active-model-badge').textContent = selectedLabel('vid-model');
+  document.getElementById('active-model-badge').classList.remove('hidden');
+
+  startTimer('vid-timer', 'vid-bar', 'vid-status-text', [
+    { t: 5,   msg: 'Request diterima, model memproses...' },
+    { t: 30,  msg: 'Generating frames...' },
+    { t: 90,  msg: 'Rendering video...' },
+    { t: 150, msg: 'Hampir selesai...' },
+  ]);
+
+  try {
+    // Catatan: "duration" di sini dikirim tapi diabaikan oleh Worker — durasi
+    // video dikunci 6 detik di server demi kepastian margin (lihat worker.js).
+    const { taskId, provider } = await workerFetch('/api/videos/generate', {
+      method: 'POST',
+      body: JSON.stringify({ prompt, model, duration: selectedDuration, ratio: selectedVidRatio }),
+    });
+
+    document.getElementById('vid-status-text').textContent = 'Polling hasil...';
+    const videoUrl = await pollVideo(provider, taskId, txt => {
+      document.getElementById('vid-status-text').textContent = txt;
+    });
+
+    stopTimer('vid-bar');
+    document.getElementById('vid-status-bar').classList.add('hidden');
+    document.getElementById('generated-video').src = videoUrl;
+    document.getElementById('video-result').classList.remove('hidden');
+    addHistory({ type: 'video', prompt: prompt.slice(0, 60), src: videoUrl, model: selectedLabel('vid-model') });
+    genCount++; updateCounter();
+    showToast('Video selesai! 🎬');
+  } catch (e) {
+    stopTimer('vid-bar');
+    document.getElementById('vid-status-bar').classList.add('hidden');
+    showToast(parseErr(e), true);
+  } finally { btn.disabled = false; }
+}
+
+// ════════════════════════════════════════════
+//  GENERATE MULTI-REF VIDEO
+// ════════════════════════════════════════════
+async function generateMultiRefVideo() {
+  const filled = references.filter(Boolean);
+  if (!filled.length) return showToast('Upload minimal 1 gambar!', true);
+  const prompt = document.getElementById('multi-prompt').value.trim();
+  if (!prompt) return showToast('Isi deskripsi gerakan!', true);
+
+  const model = document.getElementById('multi-model').value;
+  const btn   = document.getElementById('multi-btn'); btn.disabled = true;
+  document.getElementById('multi-result').classList.add('hidden');
+  document.getElementById('multi-status-bar').classList.remove('hidden');
+
+  startTimer('multi-timer', 'multi-bar', 'multi-status-text', [
+    { t: 5,  msg: 'Mengirim referensi gambar...' },
+    { t: 30, msg: 'Menganalisis gambar...' },
+    { t: 90, msg: 'Generating video...' },
+  ]);
+
+  try {
+    const { taskId, provider } = await workerFetch('/api/videos/generate', {
+      method: 'POST',
+      body: JSON.stringify({ prompt, model, duration: 5, ratio: selectedVidRatio, image: filled[0] }),
+    });
+
+    const videoUrl = await pollVideo(provider, taskId, txt => {
+      document.getElementById('multi-status-text').textContent = txt;
+    });
+
+    stopTimer('multi-bar');
+    document.getElementById('multi-status-bar').classList.add('hidden');
+    document.getElementById('multi-generated-video').src = videoUrl;
+    document.getElementById('multi-result').classList.remove('hidden');
+    addHistory({ type: 'video', prompt: prompt.slice(0, 60), src: videoUrl, model: selectedLabel('multi-model') });
+    genCount++; updateCounter();
+    showToast('Video dari referensi selesai! 🎞️');
+  } catch (e) {
+    stopTimer('multi-bar');
+    document.getElementById('multi-status-bar').classList.add('hidden');
+    showToast(parseErr(e), true);
+  } finally { btn.disabled = false; }
+}
+
+// ════════════════════════════════════════════
+//  VIDEO POLLING (via Worker)
+// ════════════════════════════════════════════
+async function pollVideo(provider, taskId, onStatus) {
+  for (let i = 0; i < 72; i++) {
+    await delay(5000);
+    const data = await workerFetch(`/api/videos/status/${provider}/${taskId}`);
+    onStatus(`Status: ${data.status} (${(i + 1) * 5}s)`);
+    if (data.done) {
+      if (data.url) return data.url;
+      throw new Error('Video selesai tapi URL tidak ditemukan');
+    }
+    if (data.failed) throw new Error(`Video gagal (${data.status})`);
+  }
+  throw new Error('Timeout setelah 6 menit');
+}
+
+// ════════════════════════════════════════════
+//  DIAGNOSTICS
+// ════════════════════════════════════════════
+function diagLog(msg, cls = 'text-zinc-500') {
+  const log = document.getElementById('diag-log');
+  const t   = new Date().toLocaleTimeString('id', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+  const p   = document.createElement('p'); p.className = cls; p.textContent = `[${t}] ${msg}`;
+  log.appendChild(p); log.scrollTop = log.scrollHeight;
+}
+
+function diagBadge(n, state) {
+  const b   = document.getElementById(`diag-badge-${n}`);
+  const map = { run:'badge-run Testing...', pass:'badge-pass ✅ PASS', fail:'badge-fail ❌ FAIL', pending:'badge-pending Pending' };
+  const [cls, txt] = (map[state] || 'badge-pending Pending').split(' ');
+  b.className = `text-xs px-3 py-1 rounded-full ${cls}`; b.textContent = txt.replace(/_/g, ' ');
+}
+
+function generateTestImage() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 256; canvas.height = 256;
+  const ctx = canvas.getContext('2d');
+  for (let i = 0; i < 256; i += 4) {
+    ctx.fillStyle = `hsl(${(i * 3) % 360}, 70%, ${30 + (i % 50)}%)`;
+    ctx.fillRect(0, i, 256, 4);
+  }
+  ctx.fillStyle = '#ffffff';
+  ctx.font = 'bold 22px sans-serif';
+  ctx.fillText('HC Labs Test', 24, 128);
+  return canvas.toDataURL('image/jpeg', 0.85);
+}
+
+async function runDiagnostics() {
+  const btn = document.getElementById('diag-btn'); btn.disabled = true; btn.textContent = 'Testing...';
+  document.getElementById('diag-log').innerHTML = '';
+  document.getElementById('diag-summary').classList.add('hidden');
+  [1,2,3,4,5].forEach(i => diagBadge(i, 'pending'));
+
+  let pass = 0, fail = 0;
+
+  // Test 1: Worker health
+  diagBadge(1, 'run'); diagLog('TEST 1 · Worker Health Check');
+  try {
+    const h = await workerFetch('/api/health');
+    diagLog(`✅ Worker online · img:${h.imageProvider} vid:${h.videoProvider}`, 'text-green-400');
+    diagBadge(1, 'pass'); pass++;
+  } catch (e) { diagLog(`❌ ${e.message}`, 'text-red-400'); diagBadge(1, 'fail'); fail++; }
+
+  // Test 2: Model list
+  diagBadge(2, 'run'); diagLog('TEST 2 · Model List');
+  try {
+    const m = await workerFetch('/api/models');
+    diagLog(`✅ ${m.image?.length || 0} image models, ${m.video?.length || 0} video models`, 'text-green-400');
+    diagBadge(2, 'pass'); pass++;
+  } catch (e) { diagLog(`❌ ${e.message}`, 'text-red-400'); diagBadge(2, 'fail'); fail++; }
+
+  // Test 3: Provider connectivity (Worker → Provider)
+  diagBadge(3, 'run'); diagLog('TEST 3 · Provider Connectivity (server-side)');
+  try {
+    const d = await workerFetch('/api/diagnostics', { method: 'POST', body: JSON.stringify({}) });
+    d.results?.forEach(r => diagLog(`${r.ok ? '✅' : '❌'} ${r.test}: ${r.detail}`, r.ok ? 'text-green-400' : 'text-red-400'));
+    if (d.ok) { diagBadge(3, 'pass'); pass++; }
+    else { diagBadge(3, 'fail'); fail++; }
+  } catch (e) { diagLog(`❌ ${e.message}`, 'text-red-400'); diagBadge(3, 'fail'); fail++; }
+
+  // Test 4: Image generation
+  diagBadge(4, 'run'); diagLog('TEST 4 · Image Generation Test');
+  try {
+    const model = document.getElementById('img-model').value;
+    const r = await workerFetch('/api/images/generate', {
+      method: 'POST',
+      body: JSON.stringify({ prompt: 'a red apple on white table, minimal', model, size: '1024x1024' }),
+    });
+    diagLog(`✅ Image OK · format:${r.type} · provider:${r.provider}`, 'text-green-400');
+    diagBadge(4, 'pass'); pass++;
+  } catch (e) { diagLog(`❌ ${e.message}`, 'text-red-400'); diagBadge(4, 'fail'); fail++; }
+
+  // Test 5: Image Edit (img2img)
+  diagBadge(5, 'run'); diagLog('TEST 5 · Image Editor (Img2Img) Test');
+  try {
+    const model = document.getElementById('edit-model').value;
+    const testImg = generateTestImage();
+    const r = await workerFetch('/api/images/edit', {
+      method: 'POST',
+      body: JSON.stringify({ prompt: 'make it blue, simple test', model, image: testImg, strength: 0.5 }),
+    });
+    diagLog(`✅ Image Edit OK · format:${r.type || 'pending'} · provider:${r.provider}`, 'text-green-400');
+    diagBadge(5, 'pass'); pass++;
+  } catch (e) { diagLog(`❌ ${e.message}`, 'text-red-400'); diagBadge(5, 'fail'); fail++; }
+
+  // Summary
+  const total = pass + fail;
+  const sum   = document.getElementById('diag-summary'); sum.classList.remove('hidden');
+  const title = document.getElementById('diag-summary-title');
+  title.textContent = `${pass}/${total} Test Berhasil`;
+  title.className   = 'font-semibold mb-4 ' + (fail === 0 ? 'text-green-400' : pass === 0 ? 'text-red-400' : 'text-yellow-400');
+  diagLog(`─── SELESAI ${pass}/${total} PASS ───`, pass === total ? 'text-green-400' : 'text-yellow-400');
+  btn.disabled = false; btn.textContent = '🔬 Jalankan Semua Test';
+  if (pass === total) setStatus('green', 'Online — semua test pass');
+  showToast(pass === total ? 'All tests passed ✅' : `${pass}/${total} passed`, pass < total);
+}
+
+// ════════════════════════════════════════════
+//  UTILS
+// ════════════════════════════════════════════
+function startTimer(tid, bid, sid, msgs) {
+  let e = 0, mi = 0; clearInterval(timerIv);
+  document.getElementById(bid).style.width = '5%';
+  timerIv = setInterval(() => {
+    e++;
+    document.getElementById(tid).textContent = `${e}s`;
+    document.getElementById(bid).style.width = Math.min(88, 5 + (e / 360) * 83) + '%';
+    if (mi < msgs.length && e === msgs[mi].t) { document.getElementById(sid).textContent = msgs[mi].msg; mi++; }
+  }, 1000);
+}
+function stopTimer(bid) { clearInterval(timerIv); if (bid) document.getElementById(bid).style.width = '100%'; }
+function setDuration(s) {
+  selectedDuration = s;
+  [5, 8, 10].forEach(x => { const b = document.getElementById(`dur-${x}`); if (b) b.classList.toggle('active', x === s); });
+}
+function createRatioButtons(cid, arr, getter, setter) {
+  const c = document.getElementById(cid); if (!c) return; c.innerHTML = '';
+  arr.forEach(r => {
+    const b = document.createElement('button');
+    b.className = `ratio-btn px-4 py-2.5 text-sm rounded-2xl hover:border-amber-500 ${r.v === getter() ? 'active' : ''}`;
+    b.textContent = r.l;
+    b.onclick = () => { setter(r.v); createRatioButtons(cid, arr, getter, setter); };
+    c.appendChild(b);
+  });
+}
+function initRefs() {
+  const c = document.getElementById('ref-container'); c.innerHTML = ''; references = [];
+  for (let i = 0; i < 4; i++) {
+    const d = document.createElement('div');
+    d.className = 'ref-box aspect-square border-2 border-dashed border-zinc-700 rounded-3xl flex flex-col items-center justify-center bg-zinc-900/60';
+    d.innerHTML = `<i class="fa-solid fa-plus text-3xl text-zinc-600"></i><p class="text-xs mt-2 text-zinc-600">Ref ${i + 1}</p>`;
+    d.onclick = () => uploadRef(i, d); c.appendChild(d); references.push(null);
+  }
+}
+function uploadRef(idx, el) {
+  const inp = document.createElement('input'); inp.type = 'file'; inp.accept = 'image/*';
+  inp.onchange = e => {
+    const f = e.target.files[0]; if (!f) return;
+    const r = new FileReader();
+    r.onload = ev => { el.innerHTML = `<img src="${ev.target.result}" class="w-full h-full object-cover rounded-3xl">`; references[idx] = ev.target.result; };
+    r.readAsDataURL(f);
+  };
+  inp.click();
+}
+function downloadImage() {
+  const s = document.getElementById('generated-image').src; if (!s) return;
+  if (s.startsWith('data:')) { const a = document.createElement('a'); a.href = s; a.download = `hclabs-${Date.now()}.png`; a.click(); }
+  else window.open(s, '_blank');
+}
+function dlVideo(id) {
+  const s = document.getElementById(id).src; if (!s) return;
+  if (s.startsWith('data:')) { const a = document.createElement('a'); a.href = s; a.download = `hclabs-${Date.now()}.mp4`; a.click(); }
+  else window.open(s, '_blank');
+}
+function updateCounter() { document.getElementById('gen-count').textContent = genCount; document.getElementById('session-counter').classList.remove('hidden'); }
+function addHistory(item) {
+  history.unshift({ ...item, ts: Date.now() }); if (history.length > 40) history.pop();
+  localStorage.setItem('hclabs_history', JSON.stringify(history));
+  const b = document.getElementById('hist-badge'); b.textContent = history.length; b.classList.remove('hidden');
+}
+function renderHistory() {
+  const list = document.getElementById('history-list'), empty = document.getElementById('history-empty');
+  list.innerHTML = ''; if (!history.length) { empty.classList.remove('hidden'); return; } empty.classList.add('hidden');
+  history.forEach(item => {
+    const card = document.createElement('div');
+    card.className = 'glass rounded-3xl overflow-hidden transition-all cursor-pointer';
+    const t    = new Date(item.ts);
+    const time = `${t.getHours().toString().padStart(2,'0')}:${t.getMinutes().toString().padStart(2,'0')}`;
+    if (item.type === 'image' && item.src) {
+      card.innerHTML = `<img src="${item.src}" class="w-full aspect-video object-cover"><div class="p-4"><div class="flex justify-between mb-1"><span class="text-xs text-purple-400">🖼️ Image</span><span class="text-xs text-zinc-600">${time}</span></div><p class="text-xs text-zinc-400 truncate">${item.prompt}</p><p class="text-xs text-zinc-600 mt-1">${item.model || ''}</p></div>`;
+    } else {
+      card.innerHTML = `<div class="aspect-video bg-zinc-900 flex items-center justify-center"><i class="fa-solid fa-film text-4xl text-zinc-700"></i></div><div class="p-4"><div class="flex justify-between mb-1"><span class="text-xs text-red-400">🎬 Video</span><span class="text-xs text-zinc-600">${time}</span></div><p class="text-xs text-zinc-400 truncate">${item.prompt}</p><p class="text-xs text-zinc-600 mt-1">${item.model || ''}</p></div>`;
+    }
+    list.appendChild(card);
+  });
+}
+function clearHistory() {
+  if (!confirm('Hapus semua history?')) return;
+  history = []; localStorage.removeItem('hclabs_history'); renderHistory();
+  document.getElementById('hist-badge').classList.add('hidden');
+  showToast('History dihapus');
+}
+
+let toastTO;
+function showToast(msg, error = false) {
+  const t = document.getElementById('toast'), icon = document.getElementById('toast-icon');
+  document.getElementById('toast-text').textContent = msg;
+  icon.className = 'fa-solid flex-shrink-0 ' + (error ? 'fa-circle-exclamation text-red-400' : 'fa-circle-check text-green-400');
+  t.classList.remove('hidden'); clearTimeout(toastTO); toastTO = setTimeout(() => t.classList.add('hidden'), 4000);
+}
+function parseErr(e) {
+  const m = e.message || String(e);
+  if (m.includes('401') || m.includes('Unauthorized')) return '⛔ API Key provider tidak valid (cek Worker secrets)';
+  if (m.includes('403'))   return '⛔ Akses ditolak provider';
+  if (m.includes('429'))   return '⚠️ Rate limit. Tunggu sebentar.';
+  if (m.includes('404'))   return '❌ Endpoint tidak ditemukan';
+  if (m.includes('Failed to fetch') || m.includes('NetworkError')) return '🌐 Tidak bisa reach Worker. Cek WORKER_URL.';
+  if (m.includes('Timeout') || m.includes('timeout')) return '⏱️ Timeout. Coba lagi.';
+  return `❌ ${m.slice(0, 120)}`;
+}
+
+const PAGE_TITLES = { 0: 'Image Generator', 1: 'Video Generator', 2: 'Multi-Ref Video', 3: 'History', 4: 'API Diagnostics', 5: 'Image Editor (Img2Img)' };
+function switchTab(n) {
+  document.querySelectorAll('.tab').forEach((el, i) => el.classList.toggle('tab-active', i === n));
+  document.querySelectorAll('#main-content > div').forEach((el, i) => el.classList.toggle('hidden', i !== n));
+  document.getElementById('current-title').textContent = PAGE_TITLES[n] || 'HC Labs';
+  document.getElementById('session-counter').classList.toggle('hidden', n === 3 || n === 4);
+  if (n === 3) renderHistory();
+}
+
+// ════════════════════════════════════════════
+//  INIT
+// ════════════════════════════════════════════
+window.onload = () => {
+  // ── Gate check: tampilkan form license jika belum ada sesi ──
+  if (!isLicenseStored()) {
+    showGate();
+    return;
+  }
+  // Sesi sudah ada, langsung masuk app
+  applyStoredLicense();
+  bootApp();
+};
+
+function showGate() {
+  // Buat overlay gate jika belum ada
+  if (document.getElementById('hclabs-gate')) return;
+  const gate = document.createElement('div');
+  gate.id = 'hclabs-gate';
+  gate.innerHTML = `
+    <style>
+      #hclabs-gate {
+        position:fixed;inset:0;z-index:9999;
+        background:#0a0a0f;
+        display:flex;align-items:center;justify-content:center;padding:20px;
+        font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+      }
+      #hclabs-gate .gate-box { width:100%;max-width:360px;text-align:center;color:#fff; }
+      #hclabs-gate h1 { font-size:26px;font-weight:800;letter-spacing:1px;margin-bottom:6px; }
+      #hclabs-gate .sub { color:#888;font-size:13px;margin-bottom:28px; }
+      #hclabs-gate .field { text-align:left;margin-bottom:14px; }
+      #hclabs-gate label { display:block;font-size:12px;color:#aaa;margin-bottom:5px; }
+      #hclabs-gate input {
+        width:100%;padding:13px 15px;border-radius:10px;border:1px solid #2a2a35;
+        background:#15151d;color:#fff;font-size:14px;outline:none;box-sizing:border-box;
+      }
+      #hclabs-gate input:focus { border-color:#cf9a3f; }
+      #hclabs-gate input::placeholder { color:#555; }
+      #hclabs-gate .gate-logo { display:flex;justify-content:center;margin-bottom:4px; }
+      #hclabs-gate .gate-logo img { width:170px;max-width:65%;height:auto;display:block; }
+      #hclabs-gate .gate-btn {
+        width:100%;padding:14px;border-radius:10px;border:none;
+        background:linear-gradient(135deg,#f3d27a,#b9863a);
+        color:#14100a;font-size:15px;font-weight:700;cursor:pointer;margin-top:6px;
+      }
+      #hclabs-gate .gate-btn:disabled { opacity:0.6;cursor:not-allowed; }
+      #hclabs-gate .gate-err { color:#f87171;font-size:12px;margin-top:10px;min-height:16px; }
+    </style>
+    <div class="gate-box">
+      <div class="gate-logo"><img src="data:image/webp;base64,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" alt="HC Labs"></div>
+      <p class="sub">Masukkan email dan license key untuk masuk</p>
+      <div class="field">
+        <label>Email</label>
+        <input type="email" id="gate-email" placeholder="nama@email.com">
+      </div>
+      <div class="field">
+        <label>License Key</label>
+        <input type="text" id="gate-key" placeholder="HCLABS-STD-XXXXXX" style="text-transform:uppercase">
+      </div>
+      <button class="gate-btn" id="gate-btn" onclick="submitGate()">Masuk</button>
+      <div class="gate-err" id="gate-err"></div>
+    </div>
+  `;
+  document.body.appendChild(gate);
+}
+
+async function submitGate() {
+  const email = document.getElementById('gate-email').value.trim();
+  const key   = document.getElementById('gate-key').value.trim().toUpperCase();
+  const errEl = document.getElementById('gate-err');
+  const btn   = document.getElementById('gate-btn');
+  errEl.textContent = '';
+  if (!email || !key) { errEl.textContent = 'Email dan License Key wajib diisi'; return; }
+  btn.disabled = true; btn.textContent = 'Memvalidasi...';
+  try {
+    const res = await fetch(`${WORKER_URL}/api/activate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, email }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Aktivasi gagal'; btn.disabled = false; btn.textContent = 'Masuk'; return; }
+    // Simpan sesi
+    localStorage.setItem(LS_KEY,   key);
+    localStorage.setItem(LS_EMAIL, email);
+    localStorage.setItem(LS_TIER,  data.tier || 'standard');
+    // Hapus gate, boot app
+    document.getElementById('hclabs-gate').remove();
+    applyStoredLicense();
+    bootApp();
+  } catch(e) {
+    errEl.textContent = 'Gagal terhubung ke server. Coba lagi.';
+    btn.disabled = false; btn.textContent = 'Masuk';
+  }
+}
+
+function applyStoredLicense() {
+  const tier = localStorage.getItem(LS_TIER) || 'standard';
+  // Tampilkan badge tier di sidebar/header jika ada elemennya
+  const badge = document.getElementById('license-badge');
+  if (badge) {
+    badge.textContent = `HCLABS ${tier.toUpperCase()}`;
+    badge.style.color = tier === 'pro' ? '#e0b25a' : '#94a3b8';
+  }
+}
+
+function bootApp() {
+  createRatioButtons('image-ratios', RATIOS, () => selectedRatio, v => selectedRatio = v);
+  createRatioButtons('video-ratios', VID_RATIOS, () => selectedVidRatio, v => selectedVidRatio = v);
+  createRatioButtons('multi-ratios', VID_RATIOS, () => selectedVidRatio, v => selectedVidRatio = v);
+  initRefs();
+  initEditRef();
+  if (history.length) { document.getElementById('hist-badge').textContent = history.length; document.getElementById('hist-badge').classList.remove('hidden'); }
+  switchTab(0);
+  initWorker();
+  gsap.from(['.glass'], { opacity: 0, y: 20, duration: .5, stagger: .06, ease: 'power2.out' });
+}
+</script>
+</body>
+</html>
