@@ -253,6 +253,7 @@ input:focus,textarea:focus,select:focus{border-color:rgba(240,207,120,.65)!impor
           <div>
             <label class="text-xs text-zinc-500 uppercase tracking-wider block mb-3">Referensi Gambar (klik untuk upload)</label>
             <div id="ref-container" class="grid grid-cols-4 gap-4"></div>
+            <p id="multi-ref-meta" class="text-[11px] text-zinc-600 mt-3">0 referensi · Wan I2V akan memakai contact sheet saat lebih dari satu gambar</p>
           </div>
           <div>
             <label class="text-xs text-zinc-500 uppercase tracking-wider block mb-2">Deskripsi Gerakan</label>
@@ -817,9 +818,18 @@ async function generateMultiRefVideo() {
   ]);
 
   try {
+    const composedReference = await composeReferenceSheet(filled);
     const { taskId, provider } = await workerFetch('/api/videos/generate', {
       method: 'POST',
-      body: JSON.stringify({ prompt, model, duration: 5, ratio: selectedVidRatio, image: filled[0] }),
+      body: JSON.stringify({
+        prompt,
+        model,
+        duration_seconds: 5,
+        ratio: selectedVidRatio,
+        image: composedReference,
+        reference_count: filled.length,
+        reference_strategy: filled.length > 1 ? 'contact-sheet' : 'single-image',
+      }),
     });
 
     const videoUrl = await pollVideo(provider, taskId, txt => {
@@ -1000,10 +1010,38 @@ function uploadRef(idx, el) {
   inp.onchange = e => {
     const f = e.target.files[0]; if (!f) return;
     const r = new FileReader();
-    r.onload = ev => { el.innerHTML = `<img src="${ev.target.result}" class="w-full h-full object-cover rounded-3xl">`; references[idx] = ev.target.result; };
+    r.onload = ev => {
+      el.innerHTML = `<img src="${ev.target.result}" class="w-full h-full object-cover rounded-3xl">`;
+      references[idx] = ev.target.result;
+      const count = references.filter(Boolean).length;
+      const meta = document.getElementById('multi-ref-meta');
+      if (meta) meta.textContent = `${count} referensi · ${count > 1 ? 'contact sheet aktif untuk Wan I2V' : 'single-image mode'}`;
+    };
     r.readAsDataURL(f);
   };
   inp.click();
+}
+function loadReferenceImage(src) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => resolve(img);
+    img.onerror = reject;
+    img.src = src;
+  });
+}
+async function composeReferenceSheet(sources) {
+  const imgs = await Promise.all(sources.map(loadReferenceImage));
+  if (imgs.length === 1) return sources[0];
+  const size = 1024, gap = 16, cell = (size - gap * 3) / 2;
+  const canvas = document.createElement('canvas'); canvas.width = size; canvas.height = size;
+  const ctx = canvas.getContext('2d'); ctx.fillStyle = '#f3f1eb'; ctx.fillRect(0, 0, size, size);
+  imgs.slice(0, 4).forEach((img, i) => {
+    const x = gap + (i % 2) * (cell + gap), y = gap + Math.floor(i / 2) * (cell + gap);
+    const scale = Math.max(cell / img.width, cell / img.height);
+    const w = img.width * scale, h = img.height * scale;
+    ctx.drawImage(img, x + (cell - w) / 2, y + (cell - h) / 2, w, h);
+  });
+  return canvas.toDataURL('image/jpeg', 0.9);
 }
 function downloadImage() {
   const s = document.getElementById('generated-image').src; if (!s) return;
