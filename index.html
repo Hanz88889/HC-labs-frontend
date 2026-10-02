@@ -773,8 +773,10 @@ async function generateVideo() {
   ]);
 
   try {
+    const idempotencyKey = crypto.randomUUID();
     const { taskId, provider } = await workerFetch('/api/videos/generate', {
       method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify({ prompt, model, duration_seconds: selectedDuration, ratio: selectedVidRatio }),
     });
 
@@ -819,8 +821,10 @@ async function generateMultiRefVideo() {
 
   try {
     const composedReference = await composeReferenceSheet(filled);
+    const idempotencyKey = crypto.randomUUID();
     const { taskId, provider } = await workerFetch('/api/videos/generate', {
       method: 'POST',
+      headers: { 'Idempotency-Key': idempotencyKey },
       body: JSON.stringify({
         prompt,
         model,
