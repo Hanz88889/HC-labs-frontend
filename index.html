@@ -861,7 +861,9 @@ async function pollVideo(provider, taskId, onStatus) {
   for (let i = 0; i < 72; i++) {
     await delay(5000);
     const data = await workerFetch(`/api/videos/status/${provider}/${taskId}`);
-    onStatus(`Status: ${data.status} (${(i + 1) * 5}s)`);
+    const stage = data.stage || data.status || 'processing';
+    const elapsed = Number.isFinite(Number(data.elapsed_seconds)) ? Number(data.elapsed_seconds) : (i + 1) * 5;
+    onStatus(`Tahap: ${stage} (${elapsed}s)`);
     if (data.done) {
       if (data.url) return data.url;
       throw new Error('Video selesai tapi URL tidak ditemukan');
