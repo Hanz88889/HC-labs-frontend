@@ -772,11 +772,9 @@ async function generateVideo() {
   ]);
 
   try {
-    // Catatan: "duration" di sini dikirim tapi diabaikan oleh Worker — durasi
-    // video dikunci 6 detik di server demi kepastian margin (lihat worker.js).
     const { taskId, provider } = await workerFetch('/api/videos/generate', {
       method: 'POST',
-      body: JSON.stringify({ prompt, model, duration: selectedDuration, ratio: selectedVidRatio }),
+      body: JSON.stringify({ prompt, model, duration_seconds: selectedDuration, ratio: selectedVidRatio }),
     });
 
     document.getElementById('vid-status-text').textContent = 'Polling hasil...';
