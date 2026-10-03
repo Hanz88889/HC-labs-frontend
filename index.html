@@ -627,6 +627,7 @@ async function generateImage() {
   try {
     let result = await workerFetch('/api/images/generate', {
       method: 'POST',
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
       body: JSON.stringify({ prompt: prompt + style, model, size: selectedRatio, negative }),
     });
 
@@ -693,6 +694,7 @@ async function generateImageEdit() {
     // Parameter "strength" tidak digunakan oleh kontrak edit HC Labs.
     let result = await workerFetch('/api/images/edit', {
       method: 'POST',
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
       body: JSON.stringify({ prompt, model, image: editSourceImage }),
     });
 
