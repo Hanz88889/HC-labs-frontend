@@ -1173,7 +1173,7 @@ async function refineBrain() {
   try {
     const data = await workerFetch('/api/brain/refine', { method: 'POST', body: JSON.stringify({ conversation_id: brainSessionId(), input, goal, tone, format }) });
     if (!data?.plan) throw new Error('Backend tidak mengembalikan structured plan');
-    brainPlan = { ...data.plan, task_spec: data.task_spec, content_blueprint: data.content_blueprint, compiled_prompt: data.compiled_prompt }; localStorage.setItem(BRAIN_META_KEY, data.conversation_id || brainSessionId());
+    brainPlan = { ...data.plan, task_spec: data.task_spec, content_blueprint: data.content_blueprint, compiled_prompt: data.compiled_prompt, routing: data.routing }; localStorage.setItem(BRAIN_META_KEY, data.conversation_id || brainSessionId());
     document.getElementById('brain-output-text').textContent = data.compiled_prompt?.prompt || brainPlan.generation_prompt || '';
     document.getElementById('brain-output').classList.remove('hidden'); document.getElementById('brain-plan-label').textContent = validateBrainPlan(brainPlan) ? `HC Labs Brain validated · ${brainPlan.schema}` : 'Validation failed';
     document.getElementById('brain-stream-label').textContent = `Response ${brainProviderLabel()} diterima`; updateBrainMeta(goal, input); renderBrainScenes(goal); showBrainPlan();
