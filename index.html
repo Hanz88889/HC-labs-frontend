@@ -722,10 +722,16 @@ async function generateImageEdit() {
   }
 }
 async function pollImageEdit(taskId, onStatus) {
+  let currentTaskId = taskId;
   for (let i = 0; i < 24; i++) {
     await delay(5000);
-    const data = await workerFetch(`/api/images/status/${taskId}`);
+    const data = await workerFetch(`/api/images/status/${currentTaskId}`);
     onStatus(`Status: ${data.status} (${(i + 1) * 5}s)`);
+    if (data.retry_task_id) {
+      currentTaskId = data.retry_task_id;
+      onStatus(`Retry provider attempt ${data.retry_attempt_no || 2}...`);
+      continue;
+    }
     if (data.done) {
       if (data.url) return data.url;
       throw new Error('Edit selesai tapi URL tidak ditemukan');
@@ -735,10 +741,16 @@ async function pollImageEdit(taskId, onStatus) {
   throw new Error('Timeout setelah 2 menit');
 }
 async function pollImageGenerate(taskId, onStatus) {
+  let currentTaskId = taskId;
   for (let i = 0; i < 48; i++) {
     await delay(5000);
-    const data = await workerFetch(`/api/images/status/${taskId}`);
+    const data = await workerFetch(`/api/images/status/${currentTaskId}`);
     onStatus(`Status: ${data.status} (${(i + 1) * 5}s)`);
+    if (data.retry_task_id) {
+      currentTaskId = data.retry_task_id;
+      onStatus(`Retry provider attempt ${data.retry_attempt_no || 2}...`);
+      continue;
+    }
     if (data.done) {
       if (data.url) return data.url;
       throw new Error('Gambar selesai tapi URL tidak ditemukan');
@@ -860,12 +872,18 @@ async function generateMultiRefVideo() {
 //  VIDEO POLLING (via Worker)
 // ════════════════════════════════════════════
 async function pollVideo(provider, taskId, onStatus) {
+  let currentTaskId = taskId;
   for (let i = 0; i < 72; i++) {
     await delay(5000);
-    const data = await workerFetch(`/api/videos/status/${provider}/${taskId}`);
+    const data = await workerFetch(`/api/videos/status/${provider}/${currentTaskId}`);
     const stage = data.stage || data.status || 'processing';
     const elapsed = Number.isFinite(Number(data.elapsed_seconds)) ? Number(data.elapsed_seconds) : (i + 1) * 5;
     onStatus(`Tahap: ${stage} (${elapsed}s)`);
+    if (data.retry_task_id) {
+      currentTaskId = data.retry_task_id;
+      onStatus(`Retry provider attempt ${data.retry_attempt_no || 2}...`);
+      continue;
+    }
     if (data.done) {
       if (data.url) return data.url;
       throw new Error('Video selesai tapi URL tidak ditemukan');
