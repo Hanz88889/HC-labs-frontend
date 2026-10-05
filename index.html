@@ -529,6 +529,35 @@ let editSourceImage  = null;
 let history          = JSON.parse(localStorage.getItem('hclabs_history') || '[]');
 let genCount         = 0;
 let timerIv          = null;
+let progressStage    = 'submit';
+let progressStageAt  = Date.now();
+let progressMax      = 5;
+const STAGE_RANGES = {
+  submit:     { from: 5,  to: 10, tau: 6 },
+  preparing:  { from: 10, to: 18, tau: 8 },
+  processing: { from: 18, to: 88, tau: 90 },
+  settlement: { from: 90, to: 97, tau: 4 },
+  validation: { from: 90, to: 97, tau: 4 },
+};
+const STAGE_LABELS = {
+  preparing: 'Menyiapkan request',
+  processing: 'Model sedang memproses video',
+  retry: 'Mencoba ulang dengan pengaturan berbeda',
+  settlement: 'Menyelesaikan hasil',
+  validation: 'Memeriksa hasil',
+  completed: 'Selesai',
+};
+function setStageProgress(stage) {
+  if (stage !== progressStage) { progressStage = stage; progressStageAt = Date.now(); }
+}
+function currentProgress() {
+  const range = STAGE_RANGES[progressStage];
+  if (!range) return progressMax;
+  const secs = (Date.now() - progressStageAt) / 1000;
+  const value = range.from + (range.to - range.from) * (1 - Math.exp(-secs / range.tau));
+  progressMax = Math.max(progressMax, value);
+  return progressMax;
+}
 
 const RATIOS     = [{l:'1:1',v:'1024x1024'},{l:'16:9',v:'1792x1024'},{l:'9:16',v:'1024x1792'},{l:'4:5',v:'896x1120'}];
 const VID_RATIOS = [{l:'16:9',v:'16:9'},{l:'9:16',v:'9:16'},{l:'1:1',v:'1:1'}];
@@ -722,16 +751,10 @@ async function generateImageEdit() {
   }
 }
 async function pollImageEdit(taskId, onStatus) {
-  let currentTaskId = taskId;
   for (let i = 0; i < 24; i++) {
     await delay(5000);
-    const data = await workerFetch(`/api/images/status/${currentTaskId}`);
+    const data = await workerFetch(`/api/images/status/${taskId}`);
     onStatus(`Status: ${data.status} (${(i + 1) * 5}s)`);
-    if (data.retry_task_id) {
-      currentTaskId = data.retry_task_id;
-      onStatus(`Retry provider attempt ${data.retry_attempt_no || 2}...`);
-      continue;
-    }
     if (data.done) {
       if (data.url) return data.url;
       throw new Error('Edit selesai tapi URL tidak ditemukan');
@@ -741,16 +764,10 @@ async function pollImageEdit(taskId, onStatus) {
   throw new Error('Timeout setelah 2 menit');
 }
 async function pollImageGenerate(taskId, onStatus) {
-  let currentTaskId = taskId;
   for (let i = 0; i < 48; i++) {
     await delay(5000);
-    const data = await workerFetch(`/api/images/status/${currentTaskId}`);
+    const data = await workerFetch(`/api/images/status/${taskId}`);
     onStatus(`Status: ${data.status} (${(i + 1) * 5}s)`);
-    if (data.retry_task_id) {
-      currentTaskId = data.retry_task_id;
-      onStatus(`Retry provider attempt ${data.retry_attempt_no || 2}...`);
-      continue;
-    }
     if (data.done) {
       if (data.url) return data.url;
       throw new Error('Gambar selesai tapi URL tidak ditemukan');
@@ -807,7 +824,7 @@ async function generateVideo() {
     genCount++; updateCounter();
     showToast('Video selesai! 🎬');
   } catch (e) {
-    stopTimer('vid-bar');
+    stopTimer();
     document.getElementById('vid-status-bar').classList.add('hidden');
     showToast(parseErr(e), true);
   } finally { btn.disabled = false; }
@@ -862,7 +879,7 @@ async function generateMultiRefVideo() {
     genCount++; updateCounter();
     showToast('Video dari referensi selesai! 🎞️');
   } catch (e) {
-    stopTimer('multi-bar');
+    stopTimer();
     document.getElementById('multi-status-bar').classList.add('hidden');
     showToast(parseErr(e), true);
   } finally { btn.disabled = false; }
@@ -872,23 +889,18 @@ async function generateMultiRefVideo() {
 //  VIDEO POLLING (via Worker)
 // ════════════════════════════════════════════
 async function pollVideo(provider, taskId, onStatus) {
-  let currentTaskId = taskId;
   for (let i = 0; i < 72; i++) {
     await delay(5000);
-    const data = await workerFetch(`/api/videos/status/${provider}/${currentTaskId}`);
+    const data = await workerFetch(`/api/videos/status/${provider}/${taskId}`);
     const stage = data.stage || data.status || 'processing';
     const elapsed = Number.isFinite(Number(data.elapsed_seconds)) ? Number(data.elapsed_seconds) : (i + 1) * 5;
-    onStatus(`Tahap: ${stage} (${elapsed}s)`);
-    if (data.retry_task_id) {
-      currentTaskId = data.retry_task_id;
-      onStatus(`Retry provider attempt ${data.retry_attempt_no || 2}...`);
-      continue;
-    }
+    setStageProgress(stage);
+    onStatus(`${STAGE_LABELS[stage] || stage} (${elapsed}s)`);
     if (data.done) {
       if (data.url) return data.url;
       throw new Error('Video selesai tapi URL tidak ditemukan');
     }
-    if (data.failed) throw new Error(`Video gagal (${data.status})`);
+    if (data.failed) throw new Error(`Video gagal: ${data.error || data.status}`);
   }
   throw new Error('Timeout setelah 6 menit');
 }
@@ -999,15 +1011,16 @@ async function runDiagnostics() {
 // ════════════════════════════════════════════
 function startTimer(tid, bid, sid, msgs) {
   let e = 0, mi = 0; clearInterval(timerIv);
+  progressStage = 'submit'; progressStageAt = Date.now(); progressMax = 5;
   document.getElementById(bid).style.width = '5%';
   timerIv = setInterval(() => {
     e++;
     document.getElementById(tid).textContent = `${e}s`;
-    document.getElementById(bid).style.width = Math.min(88, 5 + (e / 360) * 83) + '%';
-    if (mi < msgs.length && e === msgs[mi].t) { document.getElementById(sid).textContent = msgs[mi].msg; mi++; }
+    document.getElementById(bid).style.width = currentProgress() + '%';
+    if (progressStage === 'submit' && mi < msgs.length && e === msgs[mi].t) { document.getElementById(sid).textContent = msgs[mi].msg; mi++; }
   }, 1000);
 }
-function stopTimer(bid) { clearInterval(timerIv); if (bid) document.getElementById(bid).style.width = '100%'; }
+function stopTimer(bid) { clearInterval(timerIv); if (bid) { progressStage = 'completed'; document.getElementById(bid).style.width = '100%'; } }
 function setDuration(s) {
   selectedDuration = s;
   [5, 8, 10].forEach(x => { const b = document.getElementById(`dur-${x}`); if (b) b.classList.toggle('active', x === s); });
@@ -1173,8 +1186,8 @@ async function refineBrain() {
   try {
     const data = await workerFetch('/api/brain/refine', { method: 'POST', body: JSON.stringify({ conversation_id: brainSessionId(), input, goal, tone, format }) });
     if (!data?.plan) throw new Error('Backend tidak mengembalikan structured plan');
-    brainPlan = { ...data.plan, task_spec: data.task_spec, content_blueprint: data.content_blueprint, compiled_prompt: data.compiled_prompt, routing: data.routing }; localStorage.setItem(BRAIN_META_KEY, data.conversation_id || brainSessionId());
-    document.getElementById('brain-output-text').textContent = data.compiled_prompt?.prompt || brainPlan.generation_prompt || '';
+    brainPlan = data.plan; localStorage.setItem(BRAIN_META_KEY, data.conversation_id || brainSessionId());
+    document.getElementById('brain-output-text').textContent = brainPlan.generation_prompt || '';
     document.getElementById('brain-output').classList.remove('hidden'); document.getElementById('brain-plan-label').textContent = validateBrainPlan(brainPlan) ? `HC Labs Brain validated · ${brainPlan.schema}` : 'Validation failed';
     document.getElementById('brain-stream-label').textContent = `Response ${brainProviderLabel()} diterima`; updateBrainMeta(goal, input); renderBrainScenes(goal); showBrainPlan();
     setBrainProgress(goal === 'video' ? 'Creative plan diterima · scenes siap dikirim ke HC Labs Generator' : 'Structured output tervalidasi · siap dikirim ke HC Labs Generator'); brainSteps(3); document.getElementById('brain-output').scrollIntoView({ behavior: 'smooth', block: 'nearest' }); showToast('HC Labs Brain aktif · structured plan siap digunakan');
