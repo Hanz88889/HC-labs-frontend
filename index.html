@@ -489,6 +489,9 @@ input:focus,textarea:focus,select:focus{border-color:rgba(240,207,120,.65)!impor
 //  CONFIG — ganti URL setelah deploy Worker
 // ════════════════════════════════════════════
 const WORKER_URL = 'https://hc-labs-api.hancover8888.workers.dev';
+function assetUrl(u) {
+  return typeof u === 'string' && u.startsWith('/api/assets/') ? `${WORKER_URL}${u}` : u;
+}
 // Sesuaikan URL ini hanya jika deployment Worker berpindah.
 
 // ════════════════════════════════════════════
@@ -670,7 +673,7 @@ async function generateImage() {
     }
 
     const img = document.getElementById('generated-image');
-    img.src = result.type === 'base64' ? `data:${result.mime};base64,${result.data}` : result.url;
+    img.src = result.type === 'base64' ? `data:${result.mime};base64,${result.data}` : assetUrl(result.url);
 
     document.getElementById('image-preview').classList.add('hidden');
     document.getElementById('image-result').classList.remove('hidden');
@@ -736,7 +739,7 @@ async function generateImageEdit() {
     }
 
     const img = document.getElementById('edited-image');
-    img.src = result.type === 'base64' ? `data:${result.mime};base64,${result.data}` : result.url;
+    img.src = result.type === 'base64' ? `data:${result.mime};base64,${result.data}` : assetUrl(result.url);
 
     document.getElementById('edit-preview').classList.add('hidden');
     document.getElementById('edit-result').classList.remove('hidden');
@@ -756,7 +759,7 @@ async function pollImageEdit(taskId, onStatus) {
     const data = await workerFetch(`/api/images/status/${taskId}`);
     onStatus(`Status: ${data.status} (${(i + 1) * 5}s)`);
     if (data.done) {
-      if (data.url) return data.url;
+      if (data.url) return assetUrl(data.url);
       throw new Error('Edit selesai tapi URL tidak ditemukan');
     }
     if (data.failed) throw new Error(`Edit gagal (${data.status})`);
@@ -769,7 +772,7 @@ async function pollImageGenerate(taskId, onStatus) {
     const data = await workerFetch(`/api/images/status/${taskId}`);
     onStatus(`Status: ${data.status} (${(i + 1) * 5}s)`);
     if (data.done) {
-      if (data.url) return data.url;
+      if (data.url) return assetUrl(data.url);
       throw new Error('Gambar selesai tapi URL tidak ditemukan');
     }
     if (data.failed) throw new Error(`Generate gambar gagal (${data.status})`);
@@ -897,7 +900,7 @@ async function pollVideo(provider, taskId, onStatus) {
     setStageProgress(stage);
     onStatus(`${STAGE_LABELS[stage] || stage} (${elapsed}s)`);
     if (data.done) {
-      if (data.url) return data.url;
+      if (data.url) return assetUrl(data.url);
       throw new Error('Video selesai tapi URL tidak ditemukan');
     }
     if (data.failed) throw new Error(`Video gagal: ${data.error || data.status}`);
