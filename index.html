@@ -112,7 +112,10 @@ input:focus,textarea:focus,select:focus{border-color:rgba(240,207,120,.65)!impor
       <div id="current-title" class="text-xl font-bold logo-font">Image Generator</div>
       <div id="active-model-badge" class="hidden text-xs text-zinc-500 bg-zinc-900 border border-zinc-800 px-3 py-1 rounded-full"></div>
     </div>
-    <div id="session-counter" class="text-xs text-zinc-600 hidden">Sesi: <span id="gen-count" class="text-zinc-400 font-semibold">0</span></div>
+    <div class="flex items-center gap-3">
+      <div id="license-badge" class="text-[11px] font-semibold tracking-wider bg-zinc-900/90 border border-zinc-800 px-3 py-1 rounded-full"></div>
+      <div id="session-counter" class="text-xs text-zinc-600 hidden">Sesi: <span id="gen-count" class="text-zinc-400 font-semibold">0</span></div>
+    </div>
   </div>
 
   <!-- Content -->
@@ -524,28 +527,33 @@ function logout() {
 // ════════════════════════════════════════════
 //  STATE
 // ════════════════════════════════════════════
-let selectedRatio    = '1024x1024';
-let selectedVidRatio = '16:9';
-let selectedDuration = 5;
-let references       = [];
-let editSourceImage  = null;
-let history          = JSON.parse(localStorage.getItem('hclabs_history') || '[]');
-let genCount         = 0;
-let timerIv          = null;
-let progressStage    = 'submit';
-let progressStageAt  = Date.now();
-let progressMax      = 5;
+let selectedRatio      = '1024x1024';
+let selectedVidRatio   = '16:9';
+let selectedMultiRatio = '16:9';
+let selectedDuration   = 5;
+let activeTabIndex     = 0;
+let references         = [];
+let editSourceImage    = null;
+let history            = JSON.parse(localStorage.getItem('hclabs_history') || '[]');
+let genCount           = 0;
+let timerIv            = null;
+let progressStage      = 'submit';
+let progressStageAt    = Date.now();
+let progressMax        = 5;
 const STAGE_RANGES = {
   submit:     { from: 5,  to: 10, tau: 6 },
   preparing:  { from: 10, to: 18, tau: 8 },
   processing: { from: 18, to: 88, tau: 90 },
+  retry:      { from: 25, to: 88, tau: 90 },
   settlement: { from: 90, to: 97, tau: 4 },
   validation: { from: 90, to: 97, tau: 4 },
 };
 const STAGE_LABELS = {
   preparing: 'Menyiapkan request',
-  processing: 'Model sedang memproses video',
+  processing: 'Model sedang memproses',
+  in_progress: 'Model sedang memproses',
   retry: 'Mencoba ulang dengan pengaturan berbeda',
+  retrying: 'Mencoba ulang dengan pengaturan berbeda',
   settlement: 'Menyelesaikan hasil',
   validation: 'Memeriksa hasil',
   completed: 'Selesai',
@@ -578,7 +586,7 @@ async function workerFetch(path, options = {}) {
       ...(options.headers || {}),
     },
   });
-  const data = await res.json();
+  const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
   return data;
 }
@@ -593,15 +601,35 @@ function setStatus(state, text) {
   txt.textContent = text;
 }
 
+async function syncLicenseStatus() {
+  if (!isLicenseStored()) return;
+  try {
+    const status = await workerFetch('/api/license/status');
+    if (status.tier) localStorage.setItem(LS_TIER, status.tier);
+    applyStoredLicense(status.credits);
+  } catch (e) {
+    const m = e.message || '';
+    if (/Kode tidak valid|Key dan email|email lain|belum diaktivasi|di-suspend|Masa berlaku/i.test(m)) {
+      clearLicense();
+      showGate(m);
+    }
+  }
+}
+
 async function initWorker() {
   setStatus('yellow', 'Menghubungkan...');
   document.getElementById('diag-worker-url').textContent = WORKER_URL;
   try {
     const health = await workerFetch('/api/health');
-    setStatus(health.ok ? 'green' : 'yellow', health.ok
-      ? 'Online · layanan image/video siap'
-      : `Worker online · Brain ${health.brainReady ? 'siap' : 'belum dikonfigurasi'}`);
-    await loadModels();
+    let statusMsg = 'Online · layanan image/video siap';
+    if (!health.ok) {
+      if (!health.mediaReady) statusMsg = 'Worker online · Media belum siap';
+      else if (!health.qualityGateReady) statusMsg = 'Worker online · Storage D1/R2 belum siap';
+      else if (!health.brainReady) statusMsg = 'Worker online · Brain belum dikonfigurasi';
+      else statusMsg = 'Worker online · konfigurasi belum lengkap';
+    }
+    setStatus(health.ok ? 'green' : 'yellow', statusMsg);
+    await Promise.all([loadModels(), syncLicenseStatus()]);
   } catch (e) {
     setStatus('red', 'Worker tidak terhubung');
     showToast('Worker offline — periksa WORKER_URL di kode', true);
@@ -615,6 +643,7 @@ async function loadModels() {
     fillSelect('edit-model',  data.imageEdit || []);
     fillSelect('vid-model',   data.video || []);
     fillSelect('multi-model', data.video || []);
+    syncActiveModelBadge(activeTabIndex);
   } catch (e) {
     showToast('Gagal memuat model list', true);
   }
@@ -624,6 +653,22 @@ async function loadModels() {
 function selectedLabel(id) {
   const s = document.getElementById(id);
   return s?.selectedOptions?.[0]?.textContent || s?.value || '';
+}
+
+function syncActiveModelBadge(tabIdx) {
+  const badge = document.getElementById('active-model-badge');
+  if (!badge) return;
+  const modelMap = { 0: 'img-model', 1: 'vid-model', 2: 'multi-model', 5: 'edit-model' };
+  const selectId = modelMap[tabIdx];
+  if (!selectId) {
+    badge.classList.add('hidden');
+    return;
+  }
+  const label = selectedLabel(selectId);
+  if (label && !label.includes('Memuat')) {
+    badge.textContent = label;
+    badge.classList.remove('hidden');
+  }
 }
 
 // arr berisi [{value, label}] — value adalah id internal, label adalah istilah HC Labs.
@@ -663,7 +708,7 @@ async function generateImage() {
       body: JSON.stringify({ prompt: prompt + style, model, size: selectedRatio, negative }),
     });
 
-    // Kalau worker belum selesai polling (>24 detik), frontend lanjut polling
+    // Kalau worker belum selesai polling (>21 detik), frontend lanjut polling
     if (result.pending && result.taskId) {
       document.getElementById('img-loading-text').textContent = 'Menunggu hasil generate...';
       const url = await pollImageGenerate(result.taskId, txt => {
@@ -679,6 +724,7 @@ async function generateImage() {
     document.getElementById('image-result').classList.remove('hidden');
     addHistory({ type: 'image', prompt: prompt.slice(0, 60), src: img.src, model: selectedLabel('img-model') });
     genCount++; updateCounter();
+    syncLicenseStatus();
     showToast('Gambar berhasil di-generate! ✅');
   } catch (e) {
     showToast(parseErr(e), true);
@@ -745,6 +791,7 @@ async function generateImageEdit() {
     document.getElementById('edit-result').classList.remove('hidden');
     addHistory({ type: 'image', prompt: `[Edit] ${prompt.slice(0, 55)}`, src: img.src, model: selectedLabel('edit-model') });
     genCount++; updateCounter();
+    syncLicenseStatus();
     showToast('Gambar berhasil diedit! ✨');
   } catch (e) {
     showToast(parseErr(e), true);
@@ -754,28 +801,36 @@ async function generateImageEdit() {
   }
 }
 async function pollImageEdit(taskId, onStatus) {
+  let currentTaskId = taskId;
   for (let i = 0; i < 24; i++) {
     await delay(5000);
-    const data = await workerFetch(`/api/images/status/${taskId}`);
-    onStatus(`Status: ${data.status} (${(i + 1) * 5}s)`);
+    const data = await workerFetch(`/api/images/status/${currentTaskId}`);
+    if (data.retry_task_id) currentTaskId = data.retry_task_id;
+    const stage = data.stage || data.status || 'processing';
+    const elapsed = Number.isFinite(Number(data.elapsed_seconds)) ? Number(data.elapsed_seconds) : (i + 1) * 5;
+    onStatus(`${STAGE_LABELS[stage] || stage} (${elapsed}s)`);
     if (data.done) {
       if (data.url) return assetUrl(data.url);
       throw new Error('Edit selesai tapi URL tidak ditemukan');
     }
-    if (data.failed) throw new Error(`Edit gagal (${data.status})`);
+    if (data.failed) throw new Error(`Edit gagal: ${data.error || data.status}`);
   }
   throw new Error('Timeout setelah 2 menit');
 }
 async function pollImageGenerate(taskId, onStatus) {
+  let currentTaskId = taskId;
   for (let i = 0; i < 48; i++) {
     await delay(5000);
-    const data = await workerFetch(`/api/images/status/${taskId}`);
-    onStatus(`Status: ${data.status} (${(i + 1) * 5}s)`);
+    const data = await workerFetch(`/api/images/status/${currentTaskId}`);
+    if (data.retry_task_id) currentTaskId = data.retry_task_id;
+    const stage = data.stage || data.status || 'processing';
+    const elapsed = Number.isFinite(Number(data.elapsed_seconds)) ? Number(data.elapsed_seconds) : (i + 1) * 5;
+    onStatus(`${STAGE_LABELS[stage] || stage} (${elapsed}s)`);
     if (data.done) {
       if (data.url) return assetUrl(data.url);
       throw new Error('Gambar selesai tapi URL tidak ditemukan');
     }
-    if (data.failed) throw new Error(`Generate gambar gagal (${data.status})`);
+    if (data.failed) throw new Error(`Generate gambar gagal: ${data.error || data.status}`);
   }
   throw new Error('Timeout setelah 4 menit');
 }
@@ -825,6 +880,7 @@ async function generateVideo() {
     document.getElementById('video-result').classList.remove('hidden');
     addHistory({ type: 'video', prompt: prompt.slice(0, 60), src: videoUrl, model: selectedLabel('vid-model') });
     genCount++; updateCounter();
+    syncLicenseStatus();
     showToast('Video selesai! 🎬');
   } catch (e) {
     stopTimer();
@@ -846,6 +902,8 @@ async function generateMultiRefVideo() {
   const btn   = document.getElementById('multi-btn'); btn.disabled = true;
   document.getElementById('multi-result').classList.add('hidden');
   document.getElementById('multi-status-bar').classList.remove('hidden');
+  document.getElementById('active-model-badge').textContent = selectedLabel('multi-model');
+  document.getElementById('active-model-badge').classList.remove('hidden');
 
   startTimer('multi-timer', 'multi-bar', 'multi-status-text', [
     { t: 5,  msg: 'Mengirim referensi gambar...' },
@@ -863,7 +921,7 @@ async function generateMultiRefVideo() {
         prompt,
         model,
         duration_seconds: 5,
-        ratio: selectedVidRatio,
+        ratio: selectedMultiRatio,
         image: composedReference,
         reference_count: filled.length,
         reference_strategy: filled.length > 1 ? 'contact-sheet' : 'single-image',
@@ -880,6 +938,7 @@ async function generateMultiRefVideo() {
     document.getElementById('multi-result').classList.remove('hidden');
     addHistory({ type: 'video', prompt: prompt.slice(0, 60), src: videoUrl, model: selectedLabel('multi-model') });
     genCount++; updateCounter();
+    syncLicenseStatus();
     showToast('Video dari referensi selesai! 🎞️');
   } catch (e) {
     stopTimer();
@@ -892,9 +951,11 @@ async function generateMultiRefVideo() {
 //  VIDEO POLLING (via Worker)
 // ════════════════════════════════════════════
 async function pollVideo(provider, taskId, onStatus) {
+  let currentTaskId = taskId;
   for (let i = 0; i < 72; i++) {
     await delay(5000);
-    const data = await workerFetch(`/api/videos/status/${provider}/${taskId}`);
+    const data = await workerFetch(`/api/videos/status/${provider}/${currentTaskId}`);
+    if (data.retry_task_id) currentTaskId = data.retry_task_id;
     const stage = data.stage || data.status || 'processing';
     const elapsed = Number.isFinite(Number(data.elapsed_seconds)) ? Number(data.elapsed_seconds) : (i + 1) * 5;
     setStageProgress(stage);
@@ -920,7 +981,7 @@ function diagLog(msg, cls = 'text-zinc-500') {
 
 function diagBadge(n, state) {
   const b   = document.getElementById(`diag-badge-${n}`);
-  const map = { run:'badge-run Testing...', pass:'badge-pass ✅ PASS', fail:'badge-fail ❌ FAIL', pending:'badge-pending Pending' };
+  const map = { run:'badge-run Testing...', pass:'badge-pass ✅_PASS', fail:'badge-fail ❌_FAIL', pending:'badge-pending Pending' };
   const [cls, txt] = (map[state] || 'badge-pending Pending').split(' ');
   b.className = `text-xs px-3 py-1 rounded-full ${cls}`; b.textContent = txt.replace(/_/g, ' ');
 }
@@ -943,9 +1004,15 @@ async function runDiagnostics() {
   const btn = document.getElementById('diag-btn'); btn.disabled = true; btn.textContent = 'Testing...';
   document.getElementById('diag-log').innerHTML = '';
   document.getElementById('diag-summary').classList.add('hidden');
+  const sumBody = document.getElementById('diag-summary-body');
+  if (sumBody) sumBody.innerHTML = '';
   [1,2,3,4,5].forEach(i => diagBadge(i, 'pending'));
 
   let pass = 0, fail = 0;
+  const summaryRows = [];
+  const recordSummary = (label, ok, detail) => {
+    summaryRows.push({ label, ok, detail });
+  };
 
   // Test 1: Worker health
   diagBadge(1, 'run'); diagLog('TEST 1 · Worker Health Check');
@@ -953,24 +1020,42 @@ async function runDiagnostics() {
     const h = await workerFetch('/api/health');
     diagLog('✅ Worker online · layanan image/video siap', 'text-green-400');
     diagBadge(1, 'pass'); pass++;
-  } catch (e) { diagLog(`❌ ${e.message}`, 'text-red-400'); diagBadge(1, 'fail'); fail++; }
+    recordSummary('1. Worker Health', true, h.ok ? 'Semua subsistem siap' : 'Worker merespons');
+  } catch (e) {
+    diagLog(`❌ ${e.message}`, 'text-red-400'); diagBadge(1, 'fail'); fail++;
+    recordSummary('1. Worker Health', false, e.message);
+  }
 
   // Test 2: Model list
   diagBadge(2, 'run'); diagLog('TEST 2 · Model List');
   try {
     const m = await workerFetch('/api/models');
-    diagLog(`✅ ${m.image?.length || 0} image models, ${m.video?.length || 0} video models`, 'text-green-400');
+    const detail = `${m.image?.length || 0} image models, ${m.video?.length || 0} video models`;
+    diagLog(`✅ ${detail}`, 'text-green-400');
     diagBadge(2, 'pass'); pass++;
-  } catch (e) { diagLog(`❌ ${e.message}`, 'text-red-400'); diagBadge(2, 'fail'); fail++; }
+    recordSummary('2. Model List', true, detail);
+  } catch (e) {
+    diagLog(`❌ ${e.message}`, 'text-red-400'); diagBadge(2, 'fail'); fail++;
+    recordSummary('2. Model List', false, e.message);
+  }
 
   // Test 3: Service connectivity (Worker → backend services)
   diagBadge(3, 'run'); diagLog('TEST 3 · Service Connectivity (server-side)');
   try {
     const d = await workerFetch('/api/diagnostics', { method: 'POST', body: JSON.stringify({}) });
     d.results?.forEach(r => diagLog(`${r.ok ? '✅' : '❌'} ${r.test}: ${r.detail}`, r.ok ? 'text-green-400' : 'text-red-400'));
-    if (d.ok) { diagBadge(3, 'pass'); pass++; }
-    else { diagBadge(3, 'fail'); fail++; }
-  } catch (e) { diagLog(`❌ ${e.message}`, 'text-red-400'); diagBadge(3, 'fail'); fail++; }
+    if (d.ok) {
+      diagBadge(3, 'pass'); pass++;
+      recordSummary('3. Service Connectivity', true, 'Seluruh layanan inti terhubung');
+    } else {
+      diagBadge(3, 'fail'); fail++;
+      const failedTests = (d.results || []).filter(r => !r.ok && !r.optional).map(r => r.test).join(', ');
+      recordSummary('3. Service Connectivity', false, failedTests || 'Sebagian layanan belum siap');
+    }
+  } catch (e) {
+    diagLog(`❌ ${e.message}`, 'text-red-400'); diagBadge(3, 'fail'); fail++;
+    recordSummary('3. Service Connectivity', false, e.message);
+  }
 
   // Test 4: Image generation
   diagBadge(4, 'run'); diagLog('TEST 4 · Image Generation Test');
@@ -978,11 +1063,17 @@ async function runDiagnostics() {
     const model = document.getElementById('img-model').value;
     const r = await workerFetch('/api/images/generate', {
       method: 'POST',
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
       body: JSON.stringify({ prompt: 'a red apple on white table, minimal', model, size: '1024x1024' }),
     });
-    diagLog(`✅ Image OK · format:${r.type}`, 'text-green-400');
+    const fmt = r.type || (r.pending ? 'pending' : 'url');
+    diagLog(`✅ Image OK · format:${fmt}`, 'text-green-400');
     diagBadge(4, 'pass'); pass++;
-  } catch (e) { diagLog(`❌ ${e.message}`, 'text-red-400'); diagBadge(4, 'fail'); fail++; }
+    recordSummary('4. Image Generation', true, `Format: ${fmt}`);
+  } catch (e) {
+    diagLog(`❌ ${e.message}`, 'text-red-400'); diagBadge(4, 'fail'); fail++;
+    recordSummary('4. Image Generation', false, e.message);
+  }
 
   // Test 5: Image Edit (img2img)
   diagBadge(5, 'run'); diagLog('TEST 5 · Image Editor (Img2Img) Test');
@@ -991,11 +1082,17 @@ async function runDiagnostics() {
     const testImg = generateTestImage();
     const r = await workerFetch('/api/images/edit', {
       method: 'POST',
-      body: JSON.stringify({ prompt: 'make it blue, simple test', model, image: testImg, strength: 0.5 }),
+      headers: { 'Idempotency-Key': crypto.randomUUID() },
+      body: JSON.stringify({ prompt: 'make it blue, simple test', model, image: testImg }),
     });
-    diagLog(`✅ Image Edit OK · format:${r.type || 'pending'}`, 'text-green-400');
+    const fmt = r.type || (r.pending ? 'pending' : 'url');
+    diagLog(`✅ Image Edit OK · format:${fmt}`, 'text-green-400');
     diagBadge(5, 'pass'); pass++;
-  } catch (e) { diagLog(`❌ ${e.message}`, 'text-red-400'); diagBadge(5, 'fail'); fail++; }
+    recordSummary('5. Image Editor (Img2Img)', true, `Format: ${fmt}`);
+  } catch (e) {
+    diagLog(`❌ ${e.message}`, 'text-red-400'); diagBadge(5, 'fail'); fail++;
+    recordSummary('5. Image Editor (Img2Img)', false, e.message);
+  }
 
   // Summary
   const total = pass + fail;
@@ -1003,6 +1100,20 @@ async function runDiagnostics() {
   const title = document.getElementById('diag-summary-title');
   title.textContent = `${pass}/${total} Test Berhasil`;
   title.className   = 'font-semibold mb-4 ' + (fail === 0 ? 'text-green-400' : pass === 0 ? 'text-red-400' : 'text-yellow-400');
+  if (sumBody) {
+    summaryRows.forEach(item => {
+      const row = document.createElement('div');
+      row.className = 'flex items-center justify-between text-xs border-b border-zinc-800/60 pb-2 last:border-0 last:pb-0';
+      const left = document.createElement('span');
+      left.className = item.ok ? 'text-zinc-300' : 'text-red-400';
+      left.textContent = `${item.ok ? '✅' : '❌'} ${item.label}`;
+      const right = document.createElement('span');
+      right.className = 'text-zinc-500 truncate max-w-[60%]';
+      right.textContent = item.detail || '';
+      row.append(left, right);
+      sumBody.appendChild(row);
+    });
+  }
   diagLog(`─── SELESAI ${pass}/${total} PASS ───`, pass === total ? 'text-green-400' : 'text-yellow-400');
   btn.disabled = false; btn.textContent = '🔬 Jalankan Semua Test';
   if (pass === total) setStatus('green', 'Online — semua test pass');
@@ -1081,7 +1192,12 @@ async function composeReferenceSheet(sources) {
     const x = gap + (i % 2) * (cell + gap), y = gap + Math.floor(i / 2) * (cell + gap);
     const scale = Math.max(cell / img.width, cell / img.height);
     const w = img.width * scale, h = img.height * scale;
+    ctx.save();
+    ctx.beginPath();
+    ctx.rect(x, y, cell, cell);
+    ctx.clip();
     ctx.drawImage(img, x + (cell - w) / 2, y + (cell - h) / 2, w, h);
+    ctx.restore();
   });
   return canvas.toDataURL('image/jpeg', 0.9);
 }
@@ -1095,7 +1211,12 @@ function dlVideo(id) {
   if (s.startsWith('data:')) { const a = document.createElement('a'); a.href = s; a.download = `hclabs-${Date.now()}.mp4`; a.click(); }
   else window.open(s, '_blank');
 }
-function updateCounter() { document.getElementById('gen-count').textContent = genCount; document.getElementById('session-counter').classList.remove('hidden'); }
+function updateCounter() {
+  document.getElementById('gen-count').textContent = genCount;
+  if (genCount > 0 && activeTabIndex !== 3 && activeTabIndex !== 4) {
+    document.getElementById('session-counter').classList.remove('hidden');
+  }
+}
 function addHistory(item) {
   history.unshift({ ...item, ts: Date.now() }); if (history.length > 40) history.pop();
   localStorage.setItem('hclabs_history', JSON.stringify(history));
@@ -1107,10 +1228,14 @@ function renderHistory() {
   history.forEach(item => {
     const card = document.createElement('div');
     card.className = 'glass rounded-3xl overflow-hidden transition-all cursor-pointer';
+    const resolvedSrc = item.src ? assetUrl(item.src) : '';
+    if (resolvedSrc) {
+      card.onclick = () => window.open(resolvedSrc, '_blank');
+    }
     const t    = new Date(item.ts);
     const time = `${t.getHours().toString().padStart(2,'0')}:${t.getMinutes().toString().padStart(2,'0')}`;
-    if (item.type === 'image' && item.src) {
-      const img = document.createElement('img'); img.src = item.src; img.alt = item.prompt || 'Generated image'; img.className = 'w-full aspect-video object-cover';
+    if (item.type === 'image' && resolvedSrc) {
+      const img = document.createElement('img'); img.src = resolvedSrc; img.alt = item.prompt || 'Generated image'; img.className = 'w-full aspect-video object-cover';
       card.appendChild(img);
     } else {
       const media = document.createElement('div'); media.className = 'aspect-video bg-zinc-900 flex items-center justify-center';
@@ -1142,8 +1267,15 @@ function showToast(msg, error = false) {
 }
 function parseErr(e) {
   const m = e.message || String(e);
-  if (/Key dan email|Kode tidak valid|lisensi|license|email.*lain|email.*berbeda/i.test(m)) return '⛔ License Key tidak valid atau tidak terdaftar pada hc_kv';
+  if (/Masa berlaku kode sudah habis/i.test(m)) return `⛔ ${m}`;
+  if (/Terlalu banyak percobaan gagal|Sisa percobaan/i.test(m)) return `⚠️ ${m}`;
+  if (/Maksimal.*generation aktif/i.test(m)) return `⚠️ ${m}`;
+  if (/Kredit .* habis/i.test(m)) return `⚠️ ${m}`;
+  if (/Batas biaya API harian/i.test(m)) return `⚠️ ${m}`;
   if (/Akun di-suspend|suspend/i.test(m)) return '⛔ License Key sedang ditangguhkan';
+  if (/Key dan email|Kode tidak valid|Data lisensi rusak|belum diaktivasi|email.*lain|email.*berbeda/i.test(m)) {
+    return '⛔ License Key tidak valid atau tidak terdaftar pada hc_kv';
+  }
   if (m.includes('401') || m.includes('Unauthorized')) return '⛔ Kredensial layanan tidak valid (cek konfigurasi Worker)';
   if (m.includes('403'))   return '⛔ Akses layanan ditolak';
   if (m.includes('429'))   return '⚠️ Rate limit. Tunggu sebentar.';
@@ -1165,7 +1297,18 @@ function brainSessionId() { let id = localStorage.getItem(BRAIN_META_KEY); if (!
 function brainRouter(goal) { return goal === 'video' ? 'HC Labs video planning engine' : goal === 'edit' ? 'HC Labs visual edit engine' : 'HC Labs visual generation engine'; }
 function updateBrainMeta(goal, input) { const id = brainSessionId(); const sid = document.getElementById('brain-session-id'); if (sid) sid.textContent = id; const route = document.getElementById('brain-router-label'); if (route) route.textContent = 'Router: ' + brainRouter(goal); const mem = document.getElementById('brain-memory-label'); if (mem) mem.textContent = input ? '1 context item · session active' : '0 context item'; }
 function renderBrainScenes(goal) { const el = document.getElementById('brain-scenes'); if (!el) return; if (goal !== 'video') { el.innerHTML = '<span class="scene-chip rounded-lg px-2 py-1 text-[10px] text-zinc-600">Scene plan muncul untuk video</span>'; return; } el.innerHTML = [1,2,3].map(i => `<button onclick="retryBrainScene(${i})" id="brain-scene-${i}" class="scene-chip rounded-lg px-2 py-1 text-[10px] text-zinc-400 hover:text-amber-200">S${i} · retry</button>`).join(''); }
-function retryBrainScene(scene) { const el = document.getElementById('brain-scene-' + scene); if (!el) return; el.classList.remove('failed'); el.classList.add('done'); el.textContent = 'S' + scene + ' · recovered'; showToast('Scene ' + scene + ' dipulihkan tanpa mengulang scene lain'); }
+function retryBrainScene(scene) {
+  const el = document.getElementById('brain-scene-' + scene);
+  if (!el) return;
+  el.classList.remove('failed');
+  el.classList.add('done');
+  el.textContent = 'S' + scene + ' · recovered';
+  const sceneObj = brainPlan?.scenes?.find(s => Number(s.id) === Number(scene)) || brainPlan?.scenes?.[scene - 1];
+  if (sceneObj?.prompt) {
+    document.getElementById('brain-output-text').textContent = sceneObj.prompt;
+  }
+  showToast('Scene ' + scene + ' dipulihkan tanpa mengulang scene lain');
+}
 function setBrainProgress(label) { const el = document.getElementById('brain-progress-label'); if (el) el.textContent = label; }
 function validateBrainPlan(plan) { return !!(plan && plan.schema === 'hclabs.content-plan.v1' && plan.conversation_id && plan.goal && plan.generation_prompt && plan.generation?.mode && Array.isArray(plan.scenes)); }
 
@@ -1203,15 +1346,69 @@ async function refineBrain() {
 function showBrainPlan() { const el = document.getElementById('brain-plan-json'); if (el) el.textContent = JSON.stringify(brainPlan || {}, null, 2); }
 function copyBrainPlan() { if (!brainPlan) return showToast('Buat plan terlebih dulu', true); navigator.clipboard?.writeText(JSON.stringify(brainPlan, null, 2)).then(() => showToast('Structured content plan disalin')); }
 function copyBrainPrompt() { const text = document.getElementById('brain-output-text').textContent; navigator.clipboard?.writeText(text).then(() => showToast('Prompt disalin ke clipboard')); }
-function sendBrainToGenerator() { showBrainPlan(); const text = document.getElementById('brain-output-text').textContent; const goal = document.getElementById('brain-goal').value; const map = { image: [0, 'image-prompt'], video: [1, 'video-prompt'], edit: [5, 'edit-prompt'] }; const [tab, field] = map[goal]; switchTab(tab); const el = document.getElementById(field); if (el) el.value = text; brainSteps(4); setBrainProgress('HC Labs Generator menerima creative plan · siap memproses output'); showToast('Creative plan dikirim ke HC Labs Generator'); }
-function resetBrain() { localStorage.removeItem(BRAIN_KEY); localStorage.removeItem(BRAIN_META_KEY); brainPlan = null; clearInterval(brainStreamTimer); ['brain-input','brain-output-text'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; }); document.getElementById('brain-output')?.classList.add('hidden'); brainSteps(0); showToast('Sesi Conversation Brain di-reset'); }
+function sendBrainToGenerator() {
+  showBrainPlan();
+  const text = document.getElementById('brain-output-text').textContent;
+  const goal = brainPlan?.goal || document.getElementById('brain-goal').value;
+  const planRatio = brainPlan?.generation?.aspect_ratio;
+  if (goal === 'image' && planRatio) {
+    const found = RATIOS.find(r => r.l === planRatio);
+    if (found) {
+      selectedRatio = found.v;
+      createRatioButtons('image-ratios', RATIOS, () => selectedRatio, v => selectedRatio = v);
+    }
+  } else if (goal === 'video' && planRatio) {
+    const found = VID_RATIOS.find(r => r.l === planRatio);
+    if (found) {
+      selectedVidRatio = found.v;
+      createRatioButtons('video-ratios', VID_RATIOS, () => selectedVidRatio, v => selectedVidRatio = v);
+    }
+  }
+  const map = { image: [0, 'image-prompt'], video: [1, 'video-prompt'], edit: [5, 'edit-prompt'] };
+  const [tab, field] = map[goal] || map.image;
+  switchTab(tab);
+  const el = document.getElementById(field);
+  if (el) el.value = text;
+  brainSteps(4);
+  setBrainProgress('HC Labs Generator menerima creative plan · siap memproses output');
+  showToast('Creative plan dikirim ke HC Labs Generator');
+}
+function resetBrain() {
+  localStorage.removeItem(BRAIN_KEY);
+  localStorage.removeItem(BRAIN_META_KEY);
+  brainPlan = null;
+  clearInterval(brainStreamTimer);
+  const inputEl = document.getElementById('brain-input');
+  if (inputEl) inputEl.value = '';
+  const outTextEl = document.getElementById('brain-output-text');
+  if (outTextEl) outTextEl.textContent = '';
+  const planJsonEl = document.getElementById('brain-plan-json');
+  if (planJsonEl) planJsonEl.textContent = 'Plan akan muncul setelah refinement.';
+  const planLabelEl = document.getElementById('brain-plan-label');
+  if (planLabelEl) planLabelEl.textContent = 'Plan belum dibuat';
+  const streamLabelEl = document.getElementById('brain-stream-label');
+  if (streamLabelEl) streamLabelEl.textContent = 'Idle';
+  const routerLabelEl = document.getElementById('brain-router-label');
+  if (routerLabelEl) routerLabelEl.textContent = 'Router: menunggu input';
+  const memoryLabelEl = document.getElementById('brain-memory-label');
+  if (memoryLabelEl) memoryLabelEl.textContent = '0 context item';
+  const sessionIdEl = document.getElementById('brain-session-id');
+  if (sessionIdEl) sessionIdEl.textContent = 'session —';
+  setBrainProgress('Menunggu planning');
+  renderBrainScenes('image');
+  document.getElementById('brain-output')?.classList.add('hidden');
+  brainSteps(0);
+  showToast('Sesi Conversation Brain di-reset');
+}
 
 const PAGE_TITLES = { 0: 'Image Generator', 1: 'Video Generator', 2: 'Multi-Ref Video', 3: 'History', 4: 'API Diagnostics', 5: 'Image Editor (Img2Img)', 6: 'Conversation Brain' };
 function switchTab(n) {
+  activeTabIndex = n;
   document.querySelectorAll('.tab').forEach((el, i) => el.classList.toggle('tab-active', i === n));
   document.querySelectorAll('#main-content > div').forEach((el, i) => el.classList.toggle('hidden', i !== n));
   document.getElementById('current-title').textContent = PAGE_TITLES[n] || 'HC Labs';
-  document.getElementById('session-counter').classList.toggle('hidden', n === 3 || n === 4);
+  document.getElementById('session-counter').classList.toggle('hidden', genCount === 0 || n === 3 || n === 4);
+  syncActiveModelBadge(n);
   if (n === 3) renderHistory();
   if (n === 6) { loadBrain(); brainSteps(0); ['brain-input','brain-goal','brain-tone','brain-format'].forEach(id => { const el = document.getElementById(id); if (el) el.oninput = saveBrain; if (el) el.onchange = saveBrain; }); }
 }
@@ -1230,9 +1427,15 @@ window.onload = () => {
   bootApp();
 };
 
-function showGate() {
+function showGate(initialError = '') {
   // Buat overlay gate jika belum ada
-  if (document.getElementById('hclabs-gate')) return;
+  if (document.getElementById('hclabs-gate')) {
+    if (initialError) {
+      const errEl = document.getElementById('gate-err');
+      if (errEl) errEl.textContent = initialError;
+    }
+    return;
+  }
   const gate = document.createElement('div');
   gate.id = 'hclabs-gate';
   gate.innerHTML = `
@@ -1269,21 +1472,25 @@ function showGate() {
       <p class="sub">Masukkan email dan license key untuk masuk</p>
       <div class="field">
         <label>Email</label>
-        <input type="email" id="gate-email" placeholder="nama@email.com">
+        <input type="email" id="gate-email" placeholder="nama@email.com" onkeydown="if(event.key==='Enter')submitGate()">
       </div>
       <div class="field">
         <label>License Key</label>
-        <input type="text" id="gate-key" placeholder="HCLABS-STD-XXXXXX" style="text-transform:uppercase">
+        <input type="text" id="gate-key" placeholder="HCLABS-STD-XXXXXX" style="text-transform:uppercase" onkeydown="if(event.key==='Enter')submitGate()">
       </div>
       <button class="gate-btn" id="gate-btn" onclick="submitGate()">Masuk</button>
       <div class="gate-err" id="gate-err"></div>
     </div>
   `;
   document.body.appendChild(gate);
+  if (initialError) {
+    const errEl = document.getElementById('gate-err');
+    if (errEl) errEl.textContent = initialError;
+  }
 }
 
 async function submitGate() {
-  const email = document.getElementById('gate-email').value.trim();
+  const email = document.getElementById('gate-email').value.trim().toLowerCase();
   const key   = document.getElementById('gate-key').value.trim().toUpperCase();
   const errEl = document.getElementById('gate-err');
   const btn   = document.getElementById('gate-btn');
@@ -1296,7 +1503,7 @@ async function submitGate() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ key, email }),
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     if (!res.ok) { errEl.textContent = data.error || 'Aktivasi gagal'; btn.disabled = false; btn.textContent = 'Masuk'; return; }
     // Simpan sesi
     localStorage.setItem(LS_KEY,   key);
@@ -1304,7 +1511,7 @@ async function submitGate() {
     localStorage.setItem(LS_TIER,  data.tier || 'standard');
     // Hapus gate, boot app
     document.getElementById('hclabs-gate').remove();
-    applyStoredLicense();
+    applyStoredLicense(data.credits);
     bootApp();
   } catch(e) {
     errEl.textContent = 'Gagal terhubung ke server. Coba lagi.';
@@ -1312,20 +1519,22 @@ async function submitGate() {
   }
 }
 
-function applyStoredLicense() {
+function applyStoredLicense(credits = null) {
   const tier = localStorage.getItem(LS_TIER) || 'standard';
-  // Tampilkan badge tier di sidebar/header jika ada elemennya
   const badge = document.getElementById('license-badge');
   if (badge) {
-    badge.textContent = `HCLABS ${tier.toUpperCase()}`;
-    badge.style.color = tier === 'pro' ? '#e0b25a' : '#94a3b8';
+    const creditText = credits && (credits.image !== undefined || credits.video !== undefined)
+      ? ` · ${credits.image ?? 0} IMG / ${credits.video ?? 0} VID`
+      : '';
+    badge.textContent = `HCLABS ${tier.toUpperCase()}${creditText}`;
+    badge.style.color = tier.toLowerCase() === 'pro' ? '#e0b25a' : '#94a3b8';
   }
 }
 
 function bootApp() {
   createRatioButtons('image-ratios', RATIOS, () => selectedRatio, v => selectedRatio = v);
   createRatioButtons('video-ratios', VID_RATIOS, () => selectedVidRatio, v => selectedVidRatio = v);
-  createRatioButtons('multi-ratios', VID_RATIOS, () => selectedVidRatio, v => selectedVidRatio = v);
+  createRatioButtons('multi-ratios', VID_RATIOS, () => selectedMultiRatio, v => selectedMultiRatio = v);
   initRefs();
   initEditRef();
   if (history.length) { document.getElementById('hist-badge').textContent = history.length; document.getElementById('hist-badge').classList.remove('hidden'); }
